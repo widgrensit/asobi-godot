@@ -22,6 +22,7 @@ var social: AsobiSocial
 var tournaments: AsobiTournaments
 var notifications: AsobiNotifications
 var storage: AsobiStorage
+var iap: AsobiIAP
 var realtime: AsobiRealtime
 
 var base_url: String:
@@ -49,5 +50,6 @@ func _ready() -> void:
 	tournaments = AsobiTournaments.new(self)
 	notifications = AsobiNotifications.new(self)
 	storage = AsobiStorage.new(self)
+	iap = AsobiIAP.new(self)
 	realtime = AsobiRealtime.new(self)
 	add_child(realtime)
