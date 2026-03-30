@@ -26,6 +26,22 @@ func login(username: String, password: String) -> Dictionary:
 		_client.player_id = resp.get("player_id", "")
 	return resp
 
+func oauth(provider: String, token: String) -> Dictionary:
+	var body := {"provider": provider, "token": token}
+	var resp: Dictionary = await _client.http.post_request(_client, "/api/v1/auth/oauth", body)
+	if not resp.has("error"):
+		_client.session_token = resp.get("session_token", "")
+		_client.player_id = resp.get("player_id", "")
+	return resp
+
+func link_provider(provider: String, token: String) -> Dictionary:
+	var body := {"provider": provider, "token": token}
+	return await _client.http.post_request(_client, "/api/v1/auth/link", body)
+
+func unlink_provider(provider: String) -> Dictionary:
+	var body := {"provider": provider}
+	return await _client.http.delete_request(_client, "/api/v1/auth/unlink", body)
+
 func refresh() -> Dictionary:
 	var body := {"session_token": _client.session_token}
 	var resp: Dictionary = await _client.http.post_request(_client, "/api/v1/auth/refresh", body)

@@ -16,9 +16,9 @@ func put_request(client: AsobiClient, path: String, body: Dictionary = {}) -> Di
 	var url := _build_url(client.base_url, path)
 	return await _send(client, url, HTTPClient.METHOD_PUT, body)
 
-func delete_request(client: AsobiClient, path: String) -> Dictionary:
+func delete_request(client: AsobiClient, path: String, body: Dictionary = {}) -> Dictionary:
 	var url := _build_url(client.base_url, path)
-	return await _send(client, url, HTTPClient.METHOD_DELETE)
+	return await _send(client, url, HTTPClient.METHOD_DELETE, body)
 
 func _send(client: AsobiClient, url: String, method: int, body: Dictionary = {}) -> Dictionary:
 	var http_request := HTTPRequest.new()
