@@ -39,8 +39,7 @@ func link_provider(provider: String, token: String) -> Dictionary:
 	return await _client.http.post_request(_client, "/api/v1/auth/link", body)
 
 func unlink_provider(provider: String) -> Dictionary:
-	var body := {"provider": provider}
-	return await _client.http.delete_request(_client, "/api/v1/auth/unlink", body)
+	return await _client.http.delete_request(_client, "/api/v1/auth/unlink", {}, {"provider": provider})
 
 func refresh() -> Dictionary:
 	var body := {"session_token": _client.session_token}

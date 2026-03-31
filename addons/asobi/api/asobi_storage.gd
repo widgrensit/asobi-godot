@@ -12,7 +12,7 @@ func list_saves() -> Dictionary:
 func get_save(slot: String) -> Dictionary:
 	return await _client.http.get_request(_client, "/api/v1/saves/%s" % slot)
 
-func put_save(slot: String, data: String, version: int = -1) -> Dictionary:
+func put_save(slot: String, data: Dictionary, version: int = -1) -> Dictionary:
 	var body := {"data": data}
 	if version >= 0:
 		body["version"] = version
@@ -26,7 +26,7 @@ func get_storage(collection: String, key: String) -> Dictionary:
 	return await _client.http.get_request(
 		_client, "/api/v1/storage/%s/%s" % [collection, key])
 
-func put_storage(collection: String, key: String, value: String,
+func put_storage(collection: String, key: String, value: Dictionary,
 		read_perm: String = "owner", write_perm: String = "owner") -> Dictionary:
 	return await _client.http.put_request(
 		_client, "/api/v1/storage/%s/%s" % [collection, key],
