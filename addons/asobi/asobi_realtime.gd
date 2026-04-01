@@ -11,10 +11,15 @@ signal notification_received(payload: Dictionary)
 signal matchmaker_matched(payload: Dictionary)
 signal presence_changed(payload: Dictionary)
 signal error_received(payload: Dictionary)
+signal vote_start(payload: Dictionary)
+signal vote_tally(payload: Dictionary)
+signal vote_result(payload: Dictionary)
+signal vote_vetoed(payload: Dictionary)
 
 var _client: AsobiClient
 var _socket := WebSocketPeer.new()
 var _is_connected := false
+var _is_connecting := false
 var _cid_counter := 0
 var _pending: Dictionary = {}
 
@@ -25,24 +30,29 @@ func _process(_delta: float) -> void:
 	if _socket.get_ready_state() == WebSocketPeer.STATE_CLOSED:
 		if _is_connected:
 			_is_connected = false
+			_is_connecting = false
 			disconnected.emit("closed")
 		return
 
 	_socket.poll()
+
+	if _is_connecting and _socket.get_ready_state() == WebSocketPeer.STATE_OPEN:
+		_is_connecting = false
+		_is_connected = true
+		_send("session.connect", {"token": _client.session_token})
 
 	while _socket.get_available_packet_count() > 0:
 		var data := _socket.get_packet().get_string_from_utf8()
 		_handle_message(data)
 
 func connect_to_server() -> void:
-	if _is_connected:
+	if _is_connected or _is_connecting:
 		return
 	var err := _socket.connect_to_url(_client.ws_url)
 	if err != OK:
 		push_error("Asobi WebSocket connect failed: %d" % err)
 		return
-	_is_connected = true
-	_send("session.connect", {"token": _client.session_token})
+	_is_connecting = true
 
 func disconnect_from_server() -> void:
 	_socket.close()
@@ -75,6 +85,12 @@ func leave_chat(channel_id: String) -> void:
 
 func update_presence(status: String = "online") -> void:
 	_send("presence.update", {"status": status})
+
+func cast_vote(vote_id: String, option_id) -> void:
+	_send("match.vote_cast", {"vote_id": vote_id, "option_id": option_id})
+
+func cast_veto(vote_id: String) -> void:
+	_send("match.vote_veto", {"vote_id": vote_id})
 
 func send_heartbeat() -> void:
 	_send_fire_and_forget("session.heartbeat", {})
@@ -111,9 +127,17 @@ func _handle_message(raw: String) -> void:
 			chat_message.emit(payload)
 		"notification.new":
 			notification_received.emit(payload)
-		"matchmaker.matched":
+		"match.matched":
 			matchmaker_matched.emit(payload)
 		"presence.changed":
 			presence_changed.emit(payload)
+		"match.vote_start":
+			vote_start.emit(payload)
+		"match.vote_tally":
+			vote_tally.emit(payload)
+		"match.vote_result":
+			vote_result.emit(payload)
+		"match.vote_vetoed":
+			vote_vetoed.emit(payload)
 		"error":
 			error_received.emit(payload)
