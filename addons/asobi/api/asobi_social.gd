@@ -15,13 +15,15 @@ func get_friends(status: String = "", limit: int = 50) -> Dictionary:
 func add_friend(friend_id: String) -> Dictionary:
 	return await _client.http.post_request(_client, "/api/v1/friends", {"friend_id": friend_id})
 
-func accept_friend(friend_id: String) -> Dictionary:
+func update_friend(friend_id: String, status: String) -> Dictionary:
 	return await _client.http.put_request(
-		_client, "/api/v1/friends/%s" % friend_id, {"status": "accepted"})
+		_client, "/api/v1/friends/%s" % friend_id, {"status": status})
+
+func accept_friend(friend_id: String) -> Dictionary:
+	return await update_friend(friend_id, "accepted")
 
 func block_friend(friend_id: String) -> Dictionary:
-	return await _client.http.put_request(
-		_client, "/api/v1/friends/%s" % friend_id, {"status": "blocked"})
+	return await update_friend(friend_id, "blocked")
 
 func remove_friend(friend_id: String) -> Dictionary:
 	return await _client.http.delete_request(_client, "/api/v1/friends/%s" % friend_id)
@@ -34,11 +36,22 @@ func create_group(group_name: String, description: String = "", max_members: int
 func get_group(group_id: String) -> Dictionary:
 	return await _client.http.get_request(_client, "/api/v1/groups/%s" % group_id)
 
+func update_group(group_id: String, params: Dictionary = {}) -> Dictionary:
+	return await _client.http.put_request(_client, "/api/v1/groups/%s" % group_id, params)
+
 func join_group(group_id: String) -> Dictionary:
 	return await _client.http.post_request(_client, "/api/v1/groups/%s/join" % group_id)
 
 func leave_group(group_id: String) -> Dictionary:
 	return await _client.http.post_request(_client, "/api/v1/groups/%s/leave" % group_id)
 
-func get_chat_history(channel_id: String) -> Dictionary:
-	return await _client.http.get_request(_client, "/api/v1/chat/%s/history" % channel_id)
+func get_group_members(group_id: String) -> Dictionary:
+	return await _client.http.get_request(_client, "/api/v1/groups/%s/members" % group_id)
+
+func update_member_role(group_id: String, player_id: String, role: String) -> Dictionary:
+	return await _client.http.put_request(
+		_client, "/api/v1/groups/%s/members/%s/role" % [group_id, player_id], {"role": role})
+
+func kick_member(group_id: String, player_id: String) -> Dictionary:
+	return await _client.http.delete_request(
+		_client, "/api/v1/groups/%s/members/%s" % [group_id, player_id])
