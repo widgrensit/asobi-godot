@@ -1,0 +1,48 @@
+name: Smoke test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out asobi-test-harness
+        uses: actions/checkout@v4
+        with:
+          repository: widgrensit/asobi-test-harness
+          path: _harness
+
+      - name: Install Godot 4.5
+        run: |
+          wget -q https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
+          unzip -q Godot_v4.5.2-stable_linux.x86_64.zip
+          mv Godot_v4.5.2-stable_linux.x86_64 /usr/local/bin/godot
+          chmod +x /usr/local/bin/godot
+          godot --version
+
+      - name: Start harness
+        working-directory: _harness
+        run: docker compose up -d
+
+      - name: Warm class cache
+        run: godot --headless --path . --import || true
+
+      - name: Run smoke test
+        env:
+          ASOBI_URL: http://localhost:8080
+        run: godot --headless --path . -s smoke_tests/smoke.gd
+
+      - name: Harness logs on failure
+        if: failure()
+        working-directory: _harness
+        run: docker compose logs asobi | tail -200
+
+      - name: Stop harness
+        if: always()
+        working-directory: _harness
+        run: docker compose down -v
