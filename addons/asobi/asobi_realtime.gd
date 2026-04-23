@@ -30,6 +30,7 @@ signal vote_vetoed(payload: Dictionary)
 signal world_joined(payload: Dictionary)
 signal world_left(payload: Dictionary)
 signal world_tick(payload: Dictionary)
+signal world_terrain(coords: Vector2i, data: String)
 signal world_list_received(payload: Dictionary)
 signal world_event(event_name: String, payload: Dictionary)
 
@@ -234,6 +235,11 @@ func _handle_message(raw: String) -> void:
 			world_left.emit(payload)
 		"world.tick":
 			world_tick.emit(payload)
+		"world.terrain":
+			var coords_arr: Array = payload.get("coords", [0, 0])
+			var coords := Vector2i(int(coords_arr[0]), int(coords_arr[1])) if coords_arr.size() >= 2 else Vector2i.ZERO
+			var data: String = payload.get("data", "")
+			world_terrain.emit(coords, data)
 		"world.list":
 			world_list_received.emit(payload)
 		# Errors
