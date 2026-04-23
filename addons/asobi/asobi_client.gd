@@ -24,6 +24,9 @@ var notifications: AsobiNotifications
 var storage: AsobiStorage
 var iap: AsobiIAP
 var votes: AsobiVotes
+var worlds: AsobiWorlds
+var dm: AsobiDM
+var chat: AsobiChat
 var realtime: AsobiRealtime
 
 var base_url: String:
@@ -53,5 +56,8 @@ func _ready() -> void:
 	storage = AsobiStorage.new(self)
 	iap = AsobiIAP.new(self)
 	votes = AsobiVotes.new(self)
+	worlds = AsobiWorlds.new(self)
+	dm = AsobiDM.new(self)
+	chat = AsobiChat.new(self)
 	realtime = AsobiRealtime.new(self)
 	add_child(realtime)
