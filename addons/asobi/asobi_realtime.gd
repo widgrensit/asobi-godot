@@ -206,7 +206,10 @@ func _handle_message(raw: String) -> void:
 		# Matchmaker
 		"matchmaker.queued":
 			matchmaker_queued.emit(payload)
-		"matchmaker.matched":
+		"match.matched":
+			# Server sends match.matched via the match_event/matched path
+			# when matchmaker forms a match. The matchmaker_matched signal
+			# is a client-friendly name.
 			matchmaker_matched.emit(payload)
 		"matchmaker.removed":
 			matchmaker_removed.emit(payload)

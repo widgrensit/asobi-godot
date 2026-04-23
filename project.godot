@@ -1,0 +1,15 @@
+; asobi-godot is an addon-only repo. This minimal project.godot exists
+; so the addon can be loaded from inside Godot for the smoke test
+; (and by anyone who wants to open the addon in the editor directly).
+
+config_version=5
+
+[application]
+
+config/name="asobi-godot"
+config/description="Asobi Godot SDK"
+config/features=PackedStringArray("4.4")
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/asobi/plugin.cfg")
