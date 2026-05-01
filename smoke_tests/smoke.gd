@@ -1,6 +1,6 @@
 extends SceneTree
 
-# Smoke test for asobi-godot against asobi-test-harness.
+# Smoke test for asobi-godot against widgrensit/sdk_demo_backend.
 #
 # Exercises the 3 canonical scenarios: auth + WS connect,
 # matchmaker → match.matched, match.input → match.state with
@@ -11,7 +11,7 @@ extends SceneTree
 # Expects ASOBI_URL (default http://localhost:8084) via env var;
 # falls back to hardcoded localhost:8084 if unset.
 
-const MATCH_MODE := "smoke"
+const MATCH_MODE := "demo"
 const STARTUP_TIMEOUT_MS := 60_000
 const MATCH_TIMEOUT_MS := 10_000
 const STATE_TIMEOUT_MS := 3_000
@@ -28,9 +28,9 @@ func _initialize() -> void:
 
 func _run_test() -> void:
 	var url := _parse_url(OS.get_environment("ASOBI_URL") if OS.has_environment("ASOBI_URL") else "http://localhost:8084")
-	_log("Waiting for harness at %s:%d" % [url.host, url.port])
+	_log("Waiting for backend at %s:%d" % [url.host, url.port])
 	await _wait_for_server(url)
-	_log("Harness reachable.")
+	_log("Backend reachable.")
 
 	# Two separate clients, one per player.
 	var a := await _spawn_player("a", url)
@@ -68,22 +68,36 @@ func _run_test() -> void:
 		return
 
 	# match.input → match.state with input applied.
-	var my_x := [-1.0]
+	# Spawn x is random in [50, 700]; capture x_initial from the first
+	# observed match.state, send the input, then assert that a subsequent
+	# match.state shows x > x_initial + 10.
+	var x_initial := [-1.0]
+	var x_latest := [-1.0]
 	var state_handler := func(payload: Dictionary) -> void:
 		var players: Dictionary = payload.get("players", {})
 		var me: Variant = players.get(a.player_id)
-		if me is Dictionary and me.has("x") and float(me.x) >= 1.0:
-			my_x[0] = float(me.x)
+		if me is Dictionary and me.has("x"):
+			var x_now := float(me.x)
+			if x_initial[0] < 0.0:
+				x_initial[0] = x_now
+			x_latest[0] = x_now
 	a.realtime.match_state.connect(state_handler)
+
+	await _wait_for_predicate(
+		func() -> bool: return x_initial[0] >= 0.0,
+		STATE_TIMEOUT_MS,
+		"first match.state with x_initial"
+	)
+	_log("Captured x_initial = %s" % x_initial[0])
 
 	a.realtime.send_match_input({"move_x": 1, "move_y": 0})
 
 	await _wait_for_predicate(
-		func() -> bool: return my_x[0] >= 1.0,
+		func() -> bool: return x_latest[0] > x_initial[0] + 10.0,
 		STATE_TIMEOUT_MS,
-		"match.state with x>=1"
+		"match.state with x > x_initial + 10"
 	)
-	_log("match.state confirmed: x = %s" % my_x[0])
+	_log("match.state confirmed: x = %s (was %s)" % [x_latest[0], x_initial[0]])
 
 	a.realtime.disconnect_from_server()
 	b.realtime.disconnect_from_server()
@@ -150,7 +164,7 @@ func _wait_for_server(url: Dictionary) -> void:
 				return
 		await _sleep_ms(1000)
 	http.queue_free()
-	_fail("harness never became reachable at %s" % endpoint)
+	_fail("backend never became reachable at %s" % endpoint)
 
 func _sleep_ms(ms: int) -> void:
 	var timer := root.create_tween()

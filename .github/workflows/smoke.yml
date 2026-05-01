@@ -11,11 +11,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check out asobi-test-harness
-        uses: actions/checkout@v4
-        with:
-          repository: widgrensit/asobi-test-harness
-          path: _harness
+      - name: Bring up sdk_demo_backend
+        run: |
+          git clone https://github.com/widgrensit/sdk_demo_backend
+          cd sdk_demo_backend && docker compose up -d
 
       - name: Install Godot 4.5
         run: |
@@ -25,24 +24,20 @@ jobs:
           chmod +x /usr/local/bin/godot
           godot --version
 
-      - name: Start harness
-        working-directory: _harness
-        run: docker compose up -d
-
       - name: Warm class cache
         run: godot --headless --path . --import || true
 
       - name: Run smoke test
         env:
-          ASOBI_URL: http://localhost:8080
+          ASOBI_URL: http://localhost:8084
         run: godot --headless --path . -s smoke_tests/smoke.gd
 
-      - name: Harness logs on failure
+      - name: Backend logs on failure
         if: failure()
-        working-directory: _harness
-        run: docker compose logs asobi | tail -200
+        working-directory: sdk_demo_backend
+        run: docker compose logs
 
-      - name: Stop harness
+      - name: Stop backend
         if: always()
-        working-directory: _harness
+        working-directory: sdk_demo_backend
         run: docker compose down -v
