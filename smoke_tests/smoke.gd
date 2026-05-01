@@ -8,8 +8,8 @@ extends SceneTree
 #
 # Run with:
 #   godot --headless -s smoke_tests/smoke.gd
-# Expects ASOBI_URL (default http://localhost:8080) via env var;
-# falls back to hardcoded localhost:8080 if unset.
+# Expects ASOBI_URL (default http://localhost:8084) via env var;
+# falls back to hardcoded localhost:8084 if unset.
 
 const MATCH_MODE := "smoke"
 const STARTUP_TIMEOUT_MS := 60_000
@@ -27,7 +27,7 @@ func _initialize() -> void:
 	_run_test()
 
 func _run_test() -> void:
-	var url := _parse_url(OS.get_environment("ASOBI_URL") if OS.has_environment("ASOBI_URL") else "http://localhost:8080")
+	var url := _parse_url(OS.get_environment("ASOBI_URL") if OS.has_environment("ASOBI_URL") else "http://localhost:8084")
 	_log("Waiting for harness at %s:%d" % [url.host, url.port])
 	await _wait_for_server(url)
 	_log("Harness reachable.")
