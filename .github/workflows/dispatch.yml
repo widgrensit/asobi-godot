@@ -1,0 +1,26 @@
+name: Dispatch test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot 4.5
+        run: |
+          wget -q https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
+          unzip -q Godot_v4.5.2-stable_linux.x86_64.zip
+          mv Godot_v4.5.2-stable_linux.x86_64 /usr/local/bin/godot
+          chmod +x /usr/local/bin/godot
+          godot --version
+
+      - name: Warm class cache
+        run: godot --headless --path . --import || true
+
+      - name: Run dispatch test
+        run: godot --headless --path . -s test/test_dispatch.gd
