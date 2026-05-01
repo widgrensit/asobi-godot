@@ -3,10 +3,10 @@ extends Node
 
 signal connected
 signal disconnected(reason: String)
+signal heartbeat(payload: Dictionary)
 signal match_joined(payload: Dictionary)
 signal match_left(payload: Dictionary)
 signal match_state(payload: Dictionary)
-signal match_started(payload: Dictionary)
 signal match_finished(payload: Dictionary)
 signal match_event(event_name: String, payload: Dictionary)
 signal chat_message(payload: Dictionary)
@@ -18,8 +18,9 @@ signal notification_received(payload: Dictionary)
 signal matchmaker_queued(payload: Dictionary)
 signal matchmaker_matched(payload: Dictionary)
 signal matchmaker_removed(payload: Dictionary)
+signal matchmaker_expired(payload: Dictionary)
+signal matchmaker_failed(payload: Dictionary)
 signal presence_updated(payload: Dictionary)
-signal presence_changed(payload: Dictionary)
 signal error_received(payload: Dictionary)
 signal vote_cast_ok(payload: Dictionary)
 signal vote_veto_ok(payload: Dictionary)
@@ -32,6 +33,8 @@ signal world_left(payload: Dictionary)
 signal world_tick(payload: Dictionary)
 signal world_terrain(coords: Vector2i, data: String)
 signal world_list_received(payload: Dictionary)
+signal world_phase_changed(payload: Dictionary)
+signal world_finished(payload: Dictionary)
 signal world_event(event_name: String, payload: Dictionary)
 
 var _client: AsobiClient
@@ -176,7 +179,7 @@ func _handle_message(raw: String) -> void:
 		"session.connected":
 			connected.emit()
 		"session.heartbeat":
-			pass
+			heartbeat.emit(payload)
 		# Match
 		"match.joined":
 			match_joined.emit(payload)
@@ -184,10 +187,27 @@ func _handle_message(raw: String) -> void:
 			match_left.emit(payload)
 		"match.state":
 			match_state.emit(payload)
-		"match.started":
-			match_started.emit(payload)
 		"match.finished":
 			match_finished.emit(payload)
+		# Match — voting (server emits these under the `match.` namespace)
+		"match.vote_start":
+			vote_start.emit(payload)
+		"match.vote_tally":
+			vote_tally.emit(payload)
+		"match.vote_result":
+			vote_result.emit(payload)
+		"match.vote_vetoed":
+			vote_vetoed.emit(payload)
+		# Match — matchmaker outcomes
+		"match.matched":
+			# Server sends match.matched via the match_event/matched path
+			# when matchmaker forms a match. The matchmaker_matched signal
+			# is a client-friendly name.
+			matchmaker_matched.emit(payload)
+		"match.matchmaker_expired":
+			matchmaker_expired.emit(payload)
+		"match.matchmaker_failed":
+			matchmaker_failed.emit(payload)
 		# Chat
 		"chat.message":
 			chat_message.emit(payload)
@@ -206,31 +226,16 @@ func _handle_message(raw: String) -> void:
 		# Matchmaker
 		"matchmaker.queued":
 			matchmaker_queued.emit(payload)
-		"match.matched":
-			# Server sends match.matched via the match_event/matched path
-			# when matchmaker forms a match. The matchmaker_matched signal
-			# is a client-friendly name.
-			matchmaker_matched.emit(payload)
 		"matchmaker.removed":
 			matchmaker_removed.emit(payload)
 		# Presence
 		"presence.updated":
 			presence_updated.emit(payload)
-		"presence.changed":
-			presence_changed.emit(payload)
-		# Voting
+		# Voting acks
 		"vote.cast_ok":
 			vote_cast_ok.emit(payload)
 		"vote.veto_ok":
 			vote_veto_ok.emit(payload)
-		"vote.start":
-			vote_start.emit(payload)
-		"vote.tally":
-			vote_tally.emit(payload)
-		"vote.result":
-			vote_result.emit(payload)
-		"vote.vetoed":
-			vote_vetoed.emit(payload)
 		# World
 		"world.joined":
 			world_joined.emit(payload)
@@ -245,6 +250,10 @@ func _handle_message(raw: String) -> void:
 			world_terrain.emit(coords, data)
 		"world.list":
 			world_list_received.emit(payload)
+		"world.phase_changed":
+			world_phase_changed.emit(payload)
+		"world.finished":
+			world_finished.emit(payload)
 		# Errors
 		"error":
 			error_received.emit(payload)
