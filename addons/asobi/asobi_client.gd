@@ -2,7 +2,7 @@ class_name AsobiClient
 extends Node
 
 @export var host: String = "localhost"
-@export var port: int = 8080
+@export var port: int = 8084
 @export var use_ssl: bool = false
 
 var session_token: String = ""
