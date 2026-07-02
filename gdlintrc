@@ -1,0 +1,10 @@
+# gdlint config for the asobi Godot SDK.
+# Line length matches the other asobi SDKs (120). The SDK deliberately uses
+# `_PascalCaseScript` preloaded-script constants and leading-underscore private
+# locals; allow both. asobi_realtime is a facade with many public methods.
+max-line-length: 120
+max-public-methods: 40
+function-variable-name: _?[a-z][a-z0-9]*(_[a-z0-9]+)*
+load-constant-name: (_?([A-Z][a-z0-9]*)+|_?[A-Z][A-Z0-9]*(_[A-Z0-9]+)*)
+disable:
+- class-definitions-order
