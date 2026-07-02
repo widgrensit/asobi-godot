@@ -3,6 +3,7 @@ extends Node
 
 signal connected
 signal disconnected(reason: String)
+signal session_revoked
 signal heartbeat(payload: Dictionary)
 signal match_joined(payload: Dictionary)
 signal match_left(payload: Dictionary)
@@ -43,16 +44,22 @@ var _is_connected := false
 var _is_connecting := false
 var _cid_counter := 0
 var _pending: Dictionary = {}
+var _revoked := false
 
 func _init(client: AsobiClient) -> void:
 	_client = client
 
 func _process(_delta: float) -> void:
 	if _socket.get_ready_state() == WebSocketPeer.STATE_CLOSED:
-		if _is_connected:
+		if _is_connected or _is_connecting:
 			_is_connected = false
 			_is_connecting = false
-			disconnected.emit("closed")
+			var reason := _socket.get_close_reason()
+			if reason == "session_revoked" or reason == "invalid_token":
+				_revoked = true
+				session_revoked.emit()
+			else:
+				disconnected.emit(reason if reason != "" else "closed")
 		return
 
 	_socket.poll()
@@ -60,7 +67,7 @@ func _process(_delta: float) -> void:
 	if _is_connecting and _socket.get_ready_state() == WebSocketPeer.STATE_OPEN:
 		_is_connecting = false
 		_is_connected = true
-		_send("session.connect", {"token": _client.session_token})
+		_send("session.connect", {"token": _client.access_token})
 
 	while _socket.get_available_packet_count() > 0:
 		var data := _socket.get_packet().get_string_from_utf8()
@@ -69,6 +76,7 @@ func _process(_delta: float) -> void:
 func connect_to_server() -> void:
 	if _is_connected or _is_connecting:
 		return
+	_revoked = false
 	var err := _socket.connect_to_url(_client.ws_url)
 	if err != OK:
 		push_error("Asobi WebSocket connect failed: %d" % err)
@@ -78,7 +86,20 @@ func connect_to_server() -> void:
 func disconnect_from_server() -> void:
 	_socket.close()
 	_is_connected = false
+	_is_connecting = false
 	_pending.clear()
+
+# Re-authenticate the socket after the access_token rotates. If already
+# connected, re-send session.connect with the fresh token; if the socket
+# dropped for a non-revoked reason, reconnect. A revoked session must go
+# through a full re-login, so we never reconnect with a dead token here.
+func reauthenticate() -> void:
+	if _revoked:
+		return
+	if _is_connected:
+		_send("session.connect", {"token": _client.access_token})
+	elif not _is_connecting:
+		connect_to_server()
 
 # Match
 func join_match(match_id: String) -> void:
@@ -256,6 +277,10 @@ func _handle_message(raw: String) -> void:
 			world_finished.emit(payload)
 		# Errors
 		"error":
+			var reason: String = payload.get("reason", "")
+			if reason == "session_revoked" or reason == "invalid_token":
+				_revoked = true
+				session_revoked.emit()
 			error_received.emit(payload)
 		_:
 			# Handle dynamic match/world events

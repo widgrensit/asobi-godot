@@ -14,24 +14,21 @@ func register(username: String, password: String, display_name: String = "") -> 
 	}
 	var resp: Dictionary = await _client.http.post_request(_client, "/api/v1/auth/register", body)
 	if not resp.has("error"):
-		_client.session_token = resp.get("session_token", "")
-		_client.player_id = resp.get("player_id", "")
+		_store_tokens(resp)
 	return resp
 
 func login(username: String, password: String) -> Dictionary:
 	var body := {"username": username, "password": password}
 	var resp: Dictionary = await _client.http.post_request(_client, "/api/v1/auth/login", body)
 	if not resp.has("error"):
-		_client.session_token = resp.get("session_token", "")
-		_client.player_id = resp.get("player_id", "")
+		_store_tokens(resp)
 	return resp
 
 func oauth(provider: String, token: String) -> Dictionary:
 	var body := {"provider": provider, "token": token}
 	var resp: Dictionary = await _client.http.post_request(_client, "/api/v1/auth/oauth", body)
 	if not resp.has("error"):
-		_client.session_token = resp.get("session_token", "")
-		_client.player_id = resp.get("player_id", "")
+		_store_tokens(resp)
 	return resp
 
 func link_provider(provider: String, token: String) -> Dictionary:
@@ -42,12 +39,27 @@ func unlink_provider(provider: String) -> Dictionary:
 	return await _client.http.delete_request(_client, "/api/v1/auth/unlink", {}, {"provider": provider})
 
 func refresh() -> Dictionary:
-	var body := {"session_token": _client.session_token}
+	var body := {"refresh_token": _client.refresh_token}
 	var resp: Dictionary = await _client.http.post_request(_client, "/api/v1/auth/refresh", body)
 	if not resp.has("error"):
-		_client.session_token = resp.get("session_token", "")
+		_client.access_token = resp.get("access_token", "")
+		_client.refresh_token = resp.get("refresh_token", "")
+		_client.save_refresh_token()
+		if _client.realtime != null:
+			_client.realtime.reauthenticate()
 	return resp
 
-func logout() -> void:
-	_client.session_token = ""
+func logout() -> Dictionary:
+	var resp := {}
+	if _client.refresh_token != "" or _client.access_token != "":
+		resp = await _client.http.post_request(_client, "/api/v1/auth/logout", {"refresh_token": _client.refresh_token})
+	_client.access_token = ""
 	_client.player_id = ""
+	_client.clear_persisted_token()
+	return resp
+
+func _store_tokens(resp: Dictionary) -> void:
+	_client.access_token = resp.get("access_token", "")
+	_client.refresh_token = resp.get("refresh_token", "")
+	_client.player_id = resp.get("player_id", "")
+	_client.save_refresh_token()
