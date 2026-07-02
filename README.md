@@ -46,17 +46,19 @@ func _ready() -> void:
         push_error("Login failed: %s" % resp.error)
         return
 
-    # match.matched (matchmaker push) and match.joined (reply to a
-    # client-initiated match.join) both signal "in a match — match.state
-    # will follow." Subscribe to matchmaker_matched and explicitly join.
-    Asobi.realtime.matchmaker_matched.connect(_on_matched)
+    # A formed match arrives as a match_event (event_name == "matched"),
+    # as does any other server-pushed match.* event. match.joined is the
+    # reply to a client-initiated match.join. Both mean "in a match --
+    # match.state will follow." Listen for the matched event and join.
+    Asobi.realtime.match_event.connect(_on_match_event)
     Asobi.realtime.match_state.connect(_on_state)
 
     Asobi.realtime.connect_to_server()
     Asobi.realtime.add_to_matchmaker("demo")
 
-func _on_matched(payload: Dictionary) -> void:
-    Asobi.realtime.join_match(payload["match_id"])
+func _on_match_event(event_name: String, payload: Dictionary) -> void:
+    if event_name == "matched":
+        Asobi.realtime.join_match(payload["match_id"])
 
 func _on_state(payload: Dictionary) -> void:
     var players: Dictionary = payload.get("players", {})

@@ -4,8 +4,9 @@ extends SceneTree
 # message handler and asserts the right signal fires.
 #
 # Pure unit test — no network, no backend. Catches doc-vs-server drift
-# (e.g. server emits match.matched but SDK only listens for matchmaker.matched)
-# before any user reports a silent failure.
+# before any user reports a silent failure. Undocumented match.*/world.*
+# events (e.g. match.matched) must reach games via the generic match_event/
+# world_event passthrough rather than an invented named signal.
 #
 # Run with:
 #   godot --headless --path . -s test/test_dispatch.gd
@@ -22,16 +23,16 @@ const EXPECTED := {
 	"session.connected": "connected",
 	"session.heartbeat": "heartbeat",
 	"match.state": "match_state",
-	"match.matched": "matchmaker_matched",
+	"match.matched": "match_event",
 	"match.joined": "match_joined",
 	"match.left": "match_left",
 	"match.finished": "match_finished",
 	"match.matchmaker_expired": "matchmaker_expired",
-	"match.matchmaker_failed": "matchmaker_failed",
-	"match.vote_start": "vote_start",
-	"match.vote_tally": "vote_tally",
-	"match.vote_result": "vote_result",
-	"match.vote_vetoed": "vote_vetoed",
+	"match.matchmaker_failed": "match_event",
+	"match.vote_start": "match_event",
+	"match.vote_tally": "match_event",
+	"match.vote_result": "match_event",
+	"match.vote_vetoed": "match_event",
 	"matchmaker.queued": "matchmaker_queued",
 	"matchmaker.removed": "matchmaker_removed",
 	"chat.joined": "chat_joined",

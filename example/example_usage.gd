@@ -15,14 +15,15 @@ func _ready() -> void:
 	await asobi.leaderboards.submit_score("weekly", 1500)
 
 	# Connect realtime
-	asobi.realtime.matchmaker_matched.connect(_on_matchmaker_matched)
+	asobi.realtime.match_event.connect(_on_match_event)
 	asobi.realtime.match_state.connect(_on_match_state)
 	asobi.realtime.connect_to_server()
 	asobi.realtime.add_to_matchmaker("arena")
 
-func _on_matchmaker_matched(payload: Dictionary) -> void:
-	print("Match found: %s" % payload.get("match_id", ""))
-	asobi.realtime.join_match(payload["match_id"])
+func _on_match_event(event_name: String, payload: Dictionary) -> void:
+	if event_name == "matched":
+		print("Match found: %s" % payload.get("match_id", ""))
+		asobi.realtime.join_match(payload["match_id"])
 
 func _on_match_state(payload: Dictionary) -> void:
 	print("Tick: %s" % str(payload.get("tick", 0)))

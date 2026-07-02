@@ -17,18 +17,12 @@ signal dm_message(payload: Dictionary)
 signal dm_sent(payload: Dictionary)
 signal notification_received(payload: Dictionary)
 signal matchmaker_queued(payload: Dictionary)
-signal matchmaker_matched(payload: Dictionary)
 signal matchmaker_removed(payload: Dictionary)
 signal matchmaker_expired(payload: Dictionary)
-signal matchmaker_failed(payload: Dictionary)
 signal presence_updated(payload: Dictionary)
 signal error_received(payload: Dictionary)
 signal vote_cast_ok(payload: Dictionary)
 signal vote_veto_ok(payload: Dictionary)
-signal vote_start(payload: Dictionary)
-signal vote_tally(payload: Dictionary)
-signal vote_result(payload: Dictionary)
-signal vote_vetoed(payload: Dictionary)
 signal world_joined(payload: Dictionary)
 signal world_left(payload: Dictionary)
 signal world_tick(payload: Dictionary)
@@ -210,25 +204,8 @@ func _handle_message(raw: String) -> void:
 			match_state.emit(payload)
 		"match.finished":
 			match_finished.emit(payload)
-		# Match — voting (server emits these under the `match.` namespace)
-		"match.vote_start":
-			vote_start.emit(payload)
-		"match.vote_tally":
-			vote_tally.emit(payload)
-		"match.vote_result":
-			vote_result.emit(payload)
-		"match.vote_vetoed":
-			vote_vetoed.emit(payload)
-		# Match — matchmaker outcomes
-		"match.matched":
-			# Server sends match.matched via the match_event/matched path
-			# when matchmaker forms a match. The matchmaker_matched signal
-			# is a client-friendly name.
-			matchmaker_matched.emit(payload)
 		"match.matchmaker_expired":
 			matchmaker_expired.emit(payload)
-		"match.matchmaker_failed":
-			matchmaker_failed.emit(payload)
 		# Chat
 		"chat.message":
 			chat_message.emit(payload)
