@@ -5,10 +5,13 @@ extends Node
 @export var port: int = 8084
 @export var use_ssl: bool = false
 
-var session_token: String = ""
+const _TOKEN_STORE_PATH := "user://asobi_auth.cfg"
+
+var access_token: String = ""
+var refresh_token: String = ""
 var player_id: String = ""
 var is_authenticated: bool:
-	get: return session_token != ""
+	get: return access_token != ""
 
 var http: AsobiHttp
 var auth: AsobiAuth
@@ -40,6 +43,8 @@ var ws_url: String:
 		return "%s://%s:%d/ws" % [scheme, host, port]
 
 func _ready() -> void:
+	_load_refresh_token()
+
 	http = AsobiHttp.new()
 	add_child(http)
 
@@ -61,3 +66,18 @@ func _ready() -> void:
 	chat = AsobiChat.new(self)
 	realtime = AsobiRealtime.new(self)
 	add_child(realtime)
+
+func save_refresh_token() -> void:
+	var config := ConfigFile.new()
+	config.set_value("auth", "refresh_token", refresh_token)
+	config.save(_TOKEN_STORE_PATH)
+
+func clear_persisted_token() -> void:
+	refresh_token = ""
+	if FileAccess.file_exists(_TOKEN_STORE_PATH):
+		DirAccess.remove_absolute(_TOKEN_STORE_PATH)
+
+func _load_refresh_token() -> void:
+	var config := ConfigFile.new()
+	if config.load(_TOKEN_STORE_PATH) == OK:
+		refresh_token = config.get_value("auth", "refresh_token", "")

@@ -38,16 +38,19 @@ func _run_test() -> void:
 	_log("Registered: %s | %s" % [a.player_id, b.player_id])
 
 	# Connect match.matched listeners BEFORE queueing to avoid a race
-	# where the server pairs us immediately on queue.
+	# where the server pairs us immediately on queue. match.matched arrives
+	# via the generic match_event passthrough (event_name == "matched").
 	var matched_a_data := [null]
 	var matched_b_data := [null]
-	a.realtime.matchmaker_matched.connect(
-		func(payload: Dictionary) -> void: matched_a_data[0] = payload,
-		CONNECT_ONE_SHOT
+	a.realtime.match_event.connect(
+		func(event_name: String, payload: Dictionary) -> void:
+			if event_name == "matched" and matched_a_data[0] == null:
+				matched_a_data[0] = payload
 	)
-	b.realtime.matchmaker_matched.connect(
-		func(payload: Dictionary) -> void: matched_b_data[0] = payload,
-		CONNECT_ONE_SHOT
+	b.realtime.match_event.connect(
+		func(event_name: String, payload: Dictionary) -> void:
+			if event_name == "matched" and matched_b_data[0] == null:
+				matched_b_data[0] = payload
 	)
 
 	a.realtime.add_to_matchmaker(MATCH_MODE)
