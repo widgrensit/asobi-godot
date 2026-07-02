@@ -28,7 +28,10 @@ func block_friend(friend_id: String) -> Dictionary:
 func remove_friend(friend_id: String) -> Dictionary:
 	return await _client.http.delete_request(_client, "/api/v1/friends/%s" % friend_id)
 
-func create_group(group_name: String, description: String = "", max_members: int = 50, open: bool = false) -> Dictionary:
+func create_group(
+	group_name: String, description: String = "",
+	max_members: int = 50, open: bool = false
+) -> Dictionary:
 	return await _client.http.post_request(_client, "/api/v1/groups", {
 		"name": group_name, "description": description,
 		"max_members": max_members, "open": open})

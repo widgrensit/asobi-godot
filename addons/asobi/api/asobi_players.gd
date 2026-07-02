@@ -9,7 +9,10 @@ func _init(client: AsobiClient) -> void:
 func get_player(player_id: String) -> Dictionary:
 	return await _client.http.get_request(_client, "/api/v1/players/%s" % player_id)
 
-func update(player_id: String, display_name: String = "", avatar_url: String = "", metadata: Dictionary = {}) -> Dictionary:
+func update(
+	player_id: String, display_name: String = "",
+	avatar_url: String = "", metadata: Dictionary = {}
+) -> Dictionary:
 	var body := {}
 	if display_name != "":
 		body["display_name"] = display_name

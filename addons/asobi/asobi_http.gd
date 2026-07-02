@@ -63,7 +63,11 @@ func _send(client: AsobiClient, url: String, method: int, body: Dictionary = {},
 		return await _send(client, url, method, body, true)
 
 	if status_code >= 400:
-		var error_msg: String = parsed.get("error", "HTTP %d" % status_code) if parsed is Dictionary else "HTTP %d" % status_code
+		var error_msg: String = (
+			parsed.get("error", "HTTP %d" % status_code)
+			if parsed is Dictionary
+			else "HTTP %d" % status_code
+		)
 		push_error("Asobi HTTP error: %s" % error_msg)
 		return {"error": error_msg, "status_code": status_code}
 
