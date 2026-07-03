@@ -23,7 +23,7 @@ const EXPECTED := {
 	"session.connected": "connected",
 	"session.heartbeat": "heartbeat",
 	"match.state": "match_state",
-	"match.matched": "match_event",
+	"match.matched": "match_matched",
 	"match.joined": "match_joined",
 	"match.left": "match_left",
 	"match.finished": "match_finished",
