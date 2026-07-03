@@ -5,7 +5,7 @@ extends SceneTree
 #
 # Pure unit test — no network, no backend. Catches doc-vs-server drift
 # before any user reports a silent failure. Undocumented match.*/world.*
-# events (e.g. match.matched) must reach games via the generic match_event/
+# events (e.g. match.vote_start) must reach games via the generic match_event/
 # world_event passthrough rather than an invented named signal.
 #
 # Run with:
