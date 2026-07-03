@@ -24,6 +24,10 @@ signal presence_updated(payload: Dictionary)
 signal error_received(payload: Dictionary)
 signal vote_cast_ok(payload: Dictionary)
 signal vote_veto_ok(payload: Dictionary)
+# Server-pushed vote lifecycle (asobi broadcasts these as match.vote_*).
+signal vote_start(payload: Dictionary)
+signal vote_tally(payload: Dictionary)
+signal vote_result(payload: Dictionary)
 signal world_joined(payload: Dictionary)
 signal world_left(payload: Dictionary)
 signal world_tick(payload: Dictionary)
@@ -237,6 +241,13 @@ func _handle_message(raw: String) -> void:
 			vote_cast_ok.emit(payload)
 		"vote.veto_ok":
 			vote_veto_ok.emit(payload)
+		# Voting lifecycle (asobi broadcasts these prefixed as match.vote_*)
+		"match.vote_start":
+			vote_start.emit(payload)
+		"match.vote_tally":
+			vote_tally.emit(payload)
+		"match.vote_result":
+			vote_result.emit(payload)
 		# World
 		"world.joined":
 			world_joined.emit(payload)
