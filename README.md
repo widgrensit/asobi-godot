@@ -14,7 +14,7 @@ Godot 4.x client SDK for the [Asobi](https://github.com/widgrensit/asobi) game b
    For a tagged release (recommended):
 
    ```bash
-   git submodule add -b v0.4.0 https://github.com/widgrensit/asobi-godot.git vendor/asobi-godot
+   git submodule add -b v0.6.1 https://github.com/widgrensit/asobi-godot.git vendor/asobi-godot
    ```
 
 2. *Project → Project Settings → Plugins* and tick **Asobi**. Reload the project so Godot picks up the autoload.
