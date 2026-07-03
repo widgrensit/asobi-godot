@@ -5,6 +5,7 @@ signal connected
 signal disconnected(reason: String)
 signal session_revoked
 signal heartbeat(payload: Dictionary)
+signal match_matched(payload: Dictionary)
 signal match_joined(payload: Dictionary)
 signal match_left(payload: Dictionary)
 signal match_state(payload: Dictionary)
@@ -196,6 +197,8 @@ func _handle_message(raw: String) -> void:
 		"session.heartbeat":
 			heartbeat.emit(payload)
 		# Match
+		"match.matched":
+			match_matched.emit(payload)
 		"match.joined":
 			match_joined.emit(payload)
 		"match.left":

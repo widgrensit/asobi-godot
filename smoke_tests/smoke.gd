@@ -37,19 +37,18 @@ func _run_test() -> void:
 	var b := await _spawn_player("b", url)
 	_log("Registered: %s | %s" % [a.player_id, b.player_id])
 
-	# Connect match.matched listeners BEFORE queueing to avoid a race
-	# where the server pairs us immediately on queue. match.matched arrives
-	# via the generic match_event passthrough (event_name == "matched").
+	# Connect match_matched listeners BEFORE queueing to avoid a race
+	# where the server pairs us immediately on queue.
 	var matched_a_data := [null]
 	var matched_b_data := [null]
-	a.realtime.match_event.connect(
-		func(event_name: String, payload: Dictionary) -> void:
-			if event_name == "matched" and matched_a_data[0] == null:
+	a.realtime.match_matched.connect(
+		func(payload: Dictionary) -> void:
+			if matched_a_data[0] == null:
 				matched_a_data[0] = payload
 	)
-	b.realtime.match_event.connect(
-		func(event_name: String, payload: Dictionary) -> void:
-			if event_name == "matched" and matched_b_data[0] == null:
+	b.realtime.match_matched.connect(
+		func(payload: Dictionary) -> void:
+			if matched_b_data[0] == null:
 				matched_b_data[0] = payload
 	)
 
