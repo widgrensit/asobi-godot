@@ -4,9 +4,10 @@ extends SceneTree
 # message handler and asserts the right signal fires.
 #
 # Pure unit test — no network, no backend. Catches doc-vs-server drift
-# before any user reports a silent failure. Undocumented match.*/world.*
-# events (e.g. match.vote_start) must reach games via the generic match_event/
-# world_event passthrough rather than an invented named signal.
+# before any user reports a silent failure. The vote lifecycle
+# (match.vote_start/tally/result) has dedicated signals; the long tail of
+# undocumented match.*/world.* events reaches games via the generic
+# match_event/world_event passthrough rather than an invented named signal.
 #
 # Run with:
 #   godot --headless --path . -s test/test_dispatch.gd
@@ -29,9 +30,9 @@ const EXPECTED := {
 	"match.finished": "match_finished",
 	"match.matchmaker_expired": "matchmaker_expired",
 	"match.matchmaker_failed": "match_event",
-	"match.vote_start": "match_event",
-	"match.vote_tally": "match_event",
-	"match.vote_result": "match_event",
+	"match.vote_start": "vote_start",
+	"match.vote_tally": "vote_tally",
+	"match.vote_result": "vote_result",
 	"match.vote_vetoed": "match_event",
 	"matchmaker.queued": "matchmaker_queued",
 	"matchmaker.removed": "matchmaker_removed",
