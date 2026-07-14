@@ -31,6 +31,20 @@ func oauth(provider: String, token: String) -> Dictionary:
 		_store_tokens(resp)
 	return resp
 
+func guest(device_id: String, device_secret: String) -> Dictionary:
+	var body := {"device_id": device_id, "device_secret": device_secret}
+	var resp: Dictionary = await _client.http.post_request(_client, "/api/v1/auth/guest", body)
+	if not resp.has("error"):
+		_store_tokens(resp)
+	return resp
+
+func upgrade_guest(username: String, password: String) -> Dictionary:
+	var body := {"username": username, "password": password}
+	var resp: Dictionary = await _client.http.post_request(_client, "/api/v1/auth/guest/upgrade", body)
+	if not resp.has("error"):
+		_store_tokens(resp)
+	return resp
+
 func link_provider(provider: String, token: String) -> Dictionary:
 	var body := {"provider": provider, "token": token}
 	return await _client.http.post_request(_client, "/api/v1/auth/link", body)

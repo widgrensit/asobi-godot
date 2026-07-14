@@ -65,9 +65,31 @@ func _on_state(payload: Dictionary) -> void:
 
 A complete worked example lives at `example/example_usage.gd`. A runnable demo (player vs. player + bots) is at [asobi-godot-demo](https://github.com/widgrensit/asobi-godot-demo).
 
+### Guest / anonymous auth
+
+Sign a player in with no username or password. Generate a device secret once (>= 32 CSPRNG bytes, base64-encoded), persist it on the device, and reuse it to resume the same guest on later launches:
+
+```gdscript
+# One time: create and store a device secret, e.g.
+#   var bytes := Crypto.new().generate_random_bytes(32)
+#   var device_secret := Marshalls.raw_to_base64(bytes)
+var resp := await Asobi.auth.guest(device_id, device_secret)
+if resp.has("error"):
+    push_error("Guest sign-in failed: %s" % resp.error)
+    return
+# resp.created is true on first sign-in, absent when resuming.
+
+# Later, convert the guest into a permanent account (keeps the same player_id):
+var upgraded := await Asobi.auth.upgrade_guest("player1", "secret123")
+if upgraded.has("error"):
+    push_error("Upgrade failed: %s" % upgraded.error)
+```
+
+Both calls store the returned tokens exactly like `login`, so the player stays signed in.
+
 ## Features
 
-- **Auth** - Register, login, token refresh
+- **Auth** - Register, login, guest / anonymous, token refresh
 - **Players** - Profiles, updates
 - **Matchmaker** - Queue, status, cancel
 - **Matches** - List, details
