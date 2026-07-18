@@ -112,7 +112,7 @@ func _test_guest() -> void:
 	_check(client.player_id == "guest-1", "guest stores player_id")
 	_check(resp.get("created") == true, "guest returns the raw response dictionary")
 
-	stub.response = {"error": "guest_auth_disabled", "status_code": 404}
+	stub.response = {"error": "guest_auth_disabled", "status_code": 403}
 	var err: Dictionary = await client.auth.guest("device-1", "c2VjcmV0")
 	_check(err.has("error"), "guest surfaces backend error")
 	_check(client.access_token == "ga", "guest does not overwrite tokens on error")
