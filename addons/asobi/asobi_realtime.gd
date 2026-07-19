@@ -148,12 +148,16 @@ func cast_veto(vote_id: String) -> void:
 	_send("vote.veto", {"vote_id": vote_id})
 
 # World
-func world_list(mode: String = "", has_capacity: String = "") -> void:
+# has_capacity is a bool, not a String: the backend filter validator accepts
+# only a JSON boolean and rejects the whole request with
+# "invalid_has_capacity_filter" otherwise. Only sent when true, matching the
+# backend default (false means "do not filter").
+func world_list(mode: String = "", has_capacity: bool = false) -> void:
 	var payload := {}
 	if mode != "":
 		payload["mode"] = mode
-	if has_capacity != "":
-		payload["has_capacity"] = has_capacity
+	if has_capacity:
+		payload["has_capacity"] = true
 	_send("world.list", payload)
 
 func world_create(mode: String) -> void:
