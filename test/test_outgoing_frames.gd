@@ -51,6 +51,20 @@ func _init() -> void:
 	rt.world_list()
 	_check(rt.sent[0]["payload"].is_empty(), "no filters means an empty payload")
 
+	rt.sent.clear()
+	rt.match_list("demo", true)
+	var match_frame: Dictionary = rt.sent[0]
+	_check(match_frame["type"] == "match.list", "match_list sends match.list")
+	_check(match_frame["payload"]["mode"] == "demo", "match_list mode is passed through")
+	_check(
+		typeof(match_frame["payload"]["has_capacity"]) == TYPE_BOOL,
+		"match_list has_capacity is a JSON boolean, not a String"
+	)
+
+	rt.sent.clear()
+	rt.match_list()
+	_check(rt.sent[0]["payload"].is_empty(), "match_list with no filters sends an empty payload")
+
 	if _failures > 0:
 		print("FAILED: ", _failures)
 		quit(1)

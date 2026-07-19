@@ -5,7 +5,7 @@ extends SceneTree
 #
 # Pure unit test — no network, no backend. Catches doc-vs-server drift
 # before any user reports a silent failure. The vote lifecycle
-# (match.vote_start/tally/result) has dedicated signals; the long tail of
+# (match.vote_start/tally/result/vetoed) has dedicated signals; the long tail of
 # undocumented match.*/world.* events reaches games via the generic
 # match_event/world_event passthrough rather than an invented named signal.
 #
@@ -28,12 +28,13 @@ const EXPECTED := {
 	"match.joined": "match_joined",
 	"match.left": "match_left",
 	"match.finished": "match_finished",
+	"match.list": "match_list_received",
 	"match.matchmaker_expired": "matchmaker_expired",
-	"match.matchmaker_failed": "match_event",
+	"match.matchmaker_failed": "matchmaker_failed",
 	"match.vote_start": "vote_start",
 	"match.vote_tally": "vote_tally",
 	"match.vote_result": "vote_result",
-	"match.vote_vetoed": "match_event",
+	"match.vote_vetoed": "vote_vetoed",
 	"matchmaker.queued": "matchmaker_queued",
 	"matchmaker.removed": "matchmaker_removed",
 	"chat.joined": "chat_joined",
