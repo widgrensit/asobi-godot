@@ -10,6 +10,7 @@ signal match_joined(payload: Dictionary)
 signal match_left(payload: Dictionary)
 signal match_state(payload: Dictionary)
 signal match_finished(payload: Dictionary)
+signal match_list_received(payload: Dictionary)
 signal match_event(event_name: String, payload: Dictionary)
 signal chat_message(payload: Dictionary)
 signal chat_joined(payload: Dictionary)
@@ -20,6 +21,7 @@ signal notification_received(payload: Dictionary)
 signal matchmaker_queued(payload: Dictionary)
 signal matchmaker_removed(payload: Dictionary)
 signal matchmaker_expired(payload: Dictionary)
+signal matchmaker_failed(payload: Dictionary)
 signal presence_updated(payload: Dictionary)
 signal error_received(payload: Dictionary)
 signal vote_cast_ok(payload: Dictionary)
@@ -28,6 +30,7 @@ signal vote_veto_ok(payload: Dictionary)
 signal vote_start(payload: Dictionary)
 signal vote_tally(payload: Dictionary)
 signal vote_result(payload: Dictionary)
+signal vote_vetoed(payload: Dictionary)
 signal world_joined(payload: Dictionary)
 signal world_left(payload: Dictionary)
 signal world_tick(payload: Dictionary)
@@ -101,6 +104,17 @@ func reauthenticate() -> void:
 		connect_to_server()
 
 # Match
+# has_capacity must be a JSON boolean and is only sent when true; the backend
+# shares its filter validator with world.list and rejects anything else with
+# "invalid_has_capacity_filter". The reply arrives as match_list_received.
+func match_list(mode: String = "", has_capacity: bool = false) -> void:
+	var payload := {}
+	if mode != "":
+		payload["mode"] = mode
+	if has_capacity:
+		payload["has_capacity"] = true
+	_send("match.list", payload)
+
 func join_match(match_id: String) -> void:
 	_send("match.join", {"match_id": match_id})
 
@@ -215,8 +229,12 @@ func _handle_message(raw: String) -> void:
 			match_state.emit(payload)
 		"match.finished":
 			match_finished.emit(payload)
+		"match.list":
+			match_list_received.emit(payload)
 		"match.matchmaker_expired":
 			matchmaker_expired.emit(payload)
+		"match.matchmaker_failed":
+			matchmaker_failed.emit(payload)
 		# Chat
 		"chat.message":
 			chat_message.emit(payload)
@@ -252,6 +270,8 @@ func _handle_message(raw: String) -> void:
 			vote_tally.emit(payload)
 		"match.vote_result":
 			vote_result.emit(payload)
+		"match.vote_vetoed":
+			vote_vetoed.emit(payload)
 		# World
 		"world.joined":
 			world_joined.emit(payload)
