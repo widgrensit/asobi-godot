@@ -30,3 +30,6 @@ jobs:
 
       - name: Run players test
         run: godot --headless --path . -s test/test_players.gd
+
+      - name: Run outgoing-frame test
+        run: godot --headless --path . -s test/test_outgoing_frames.gd
