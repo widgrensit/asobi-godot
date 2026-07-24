@@ -67,25 +67,63 @@ A complete worked example lives at `example/example_usage.gd`. A runnable demo (
 
 ### Guest / anonymous auth
 
-Sign a player in with no username or password. Generate a device secret once (>= 32 CSPRNG bytes, base64-encoded), persist it on the device, and reuse it to resume the same guest on later launches:
+Sign a player in with no username or password. A guest is a real player (with a persistent `player_id`); the device holds a `{device_id, device_secret}` keypair and the same pair resumes the same player on every launch.
+
+#### Guest device (recommended)
+
+`guest_device` manages the keypair for you - it generates a standard-base64 secret from a CSPRNG on first run, persists it to `user://`, reuses it after, and signs in:
+
+```gdscript
+var resp := await asobi.auth.guest_device()
+if resp.has("error"):
+    push_error("Guest sign-in failed: %s" % resp.error)
+    return
+if resp.get("created", false):
+    print("brand-new guest: %s" % resp.player_id)  # run first-time onboarding
+else:
+    print("welcome back: %s" % resp.player_id)
+```
+
+Options (all optional) let you choose where the pair is stored or plug in your own byte source:
+
+```gdscript
+await asobi.auth.guest_device({
+    "path": "user://mygame_device.json",     # default user://asobi_device.json
+    "random_bytes": func(n): return my_source(n),  # Callable(int) -> PackedByteArray
+})
+```
+
+Erase the stored pair to switch account or honour a "forget me" / delete-my-data request. The next `guest_device` mints a brand-new guest (`created = true`). This is local-only - pair it with `logout` to end the current session, or `upgrade_guest` first if the player wants to keep the guest:
+
+```gdscript
+await asobi.auth.logout()
+AsobiDevice.clear()  # pass the same path/store opts you signed in with
+```
+
+#### Bring your own credentials
+
+If you'd rather manage the keypair yourself (e.g. an OS keychain), call `guest` directly. `device_secret` must be **standard** base64 (RFC 4648, `+/` with `=` padding) of >= 32 CSPRNG bytes, or the server rejects it as `weak_device_secret`; `device_id` is any stable per-install id:
 
 ```gdscript
 # One time: create and store a device secret, e.g.
 #   var bytes := Crypto.new().generate_random_bytes(32)
 #   var device_secret := Marshalls.raw_to_base64(bytes)
-var resp := await Asobi.auth.guest(device_id, device_secret)
+var resp := await asobi.auth.guest(device_id, device_secret)
 if resp.has("error"):
     push_error("Guest sign-in failed: %s" % resp.error)
-    return
-# resp.created is true on first sign-in, absent when resuming.
+```
 
-# Later, convert the guest into a permanent account (keeps the same player_id):
-var upgraded := await Asobi.auth.upgrade_guest("player1", "secret123")
+#### Upgrade to a permanent account
+
+Convert a guest into a real account (keeps the same `player_id`, so no progress is lost):
+
+```gdscript
+var upgraded := await asobi.auth.upgrade_guest("player1", "secret123")
 if upgraded.has("error"):
     push_error("Upgrade failed: %s" % upgraded.error)
 ```
 
-Both calls store the returned tokens exactly like `login`, so the player stays signed in.
+All of these store the returned tokens exactly like `login`, so the player stays signed in.
 
 ## Features
 
