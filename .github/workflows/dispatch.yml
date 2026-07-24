@@ -34,6 +34,9 @@ jobs:
       - name: Run auth test
         run: godot --headless --path . -s test/test_auth.gd
 
+      - name: Run device test
+        run: godot --headless --path . -s test/test_device.gd
+
       - name: Run players test
         run: godot --headless --path . -s test/test_players.gd
 

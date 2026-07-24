@@ -38,6 +38,16 @@ func guest(device_id: String, device_secret: String) -> Dictionary:
 		_store_tokens(resp)
 	return resp
 
+# Opt-in convenience: load (or generate + persist) a device credential pair and
+# sign in as a guest in one call. Equivalent to calling guest(...) with a
+# {device_id, device_secret} you manage yourself. opts is forwarded to
+# AsobiDevice.load_or_create (path/store/random_bytes/device_id overrides).
+func guest_device(opts: Dictionary = {}) -> Dictionary:
+	var creds := AsobiDevice.load_or_create(opts)
+	if creds.has("error"):
+		return creds
+	return await guest(creds["device_id"], creds["device_secret"])
+
 func upgrade_guest(username: String, password: String) -> Dictionary:
 	var body := {"username": username, "password": password}
 	var resp: Dictionary = await _client.http.post_request(_client, "/api/v1/auth/guest/upgrade", body)
