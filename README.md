@@ -74,7 +74,7 @@ Sign a player in with no username or password. A guest is a real player (with a 
 `guest_device` manages the keypair for you - it generates a standard-base64 secret from a CSPRNG on first run, persists it to `user://`, reuses it after, and signs in:
 
 ```gdscript
-var resp := await asobi.auth.guest_device()
+var resp := await Asobi.auth.guest_device()
 if resp.has("error"):
     push_error("Guest sign-in failed: %s" % resp.error)
     return
@@ -87,7 +87,7 @@ else:
 Options (all optional) let you choose where the pair is stored or plug in your own byte source:
 
 ```gdscript
-await asobi.auth.guest_device({
+await Asobi.auth.guest_device({
     "path": "user://mygame_device.json",     # default user://asobi_device.json
     "random_bytes": func(n): return my_source(n),  # Callable(int) -> PackedByteArray
 })
@@ -96,7 +96,7 @@ await asobi.auth.guest_device({
 Erase the stored pair to switch account or honour a "forget me" / delete-my-data request. The next `guest_device` mints a brand-new guest (`created = true`). This is local-only - pair it with `logout` to end the current session, or `upgrade_guest` first if the player wants to keep the guest:
 
 ```gdscript
-await asobi.auth.logout()
+await Asobi.auth.logout()
 AsobiDevice.clear()  # pass the same path/store opts you signed in with
 ```
 
@@ -108,7 +108,7 @@ If you'd rather manage the keypair yourself (e.g. an OS keychain), call `guest` 
 # One time: create and store a device secret, e.g.
 #   var bytes := Crypto.new().generate_random_bytes(32)
 #   var device_secret := Marshalls.raw_to_base64(bytes)
-var resp := await asobi.auth.guest(device_id, device_secret)
+var resp := await Asobi.auth.guest(device_id, device_secret)
 if resp.has("error"):
     push_error("Guest sign-in failed: %s" % resp.error)
 ```
@@ -118,7 +118,7 @@ if resp.has("error"):
 Convert a guest into a real account (keeps the same `player_id`, so no progress is lost):
 
 ```gdscript
-var upgraded := await asobi.auth.upgrade_guest("player1", "secret123")
+var upgraded := await Asobi.auth.upgrade_guest("player1", "secret123")
 if upgraded.has("error"):
     push_error("Upgrade failed: %s" % upgraded.error)
 ```
