@@ -21,6 +21,7 @@ const FIXTURE_DIR := "res://test/fixtures"
 # between this map and the SDK is caught by the assertions below.
 const EXPECTED := {
 	"error": "error_received",
+	"game.error": "game_error",
 	"session.connected": "connected",
 	"session.heartbeat": "heartbeat",
 	"match.state": "match_state",
@@ -99,7 +100,7 @@ func _run() -> void:
 		var realtime: Node = _AsobiRealtimeScript.new(null)
 		root.add_child(realtime)
 		var fired := [false]
-		var on_signal := func(_a = null, _b = null) -> void: fired[0] = true
+		var on_signal := func(_a = null, _b = null, _c = null) -> void: fired[0] = true
 		realtime.connect(expected_signal, on_signal)
 		realtime._handle_message(raw)
 		if fired[0]:
@@ -108,7 +109,34 @@ func _run() -> void:
 			_fail("%s did not fire signal '%s'" % [mtype, expected_signal])
 		realtime.queue_free()
 
+	_run_game_error_fields()
+
 	print("[dispatch] %d passed, %d failed (%d fixtures)" % [_pass_count, _fail_count, fixtures.size()])
+
+# game_error carries three positional fields (not a single payload Dictionary
+# like most signals); assert the fixture's exact values land in order.
+func _run_game_error_fields() -> void:
+	var raw := _read_file("%s/game.error.json" % FIXTURE_DIR)
+	if raw == "":
+		_fail("could not read game.error.json")
+		return
+
+	var realtime: Node = _AsobiRealtimeScript.new(null)
+	root.add_child(realtime)
+	var got := {"callback": "", "script": "", "message": ""}
+	var on_signal := func(callback: String, script: String, message: String) -> void:
+		got["callback"] = callback
+		got["script"] = script
+		got["message"] = message
+	realtime.connect("game_error", on_signal)
+	realtime._handle_message(raw)
+	realtime.queue_free()
+
+	var expected := {"callback": "handle_input", "script": "match.lua", "message": "bad arithmetic + on nil, 1"}
+	if got == expected:
+		_pass("game.error -> game_error fields match fixture")
+	else:
+		_fail("game.error fields mismatch: %s" % [got])
 
 func _list_fixtures() -> Array:
 	var out: Array = []

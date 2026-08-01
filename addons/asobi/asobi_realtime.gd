@@ -24,6 +24,10 @@ signal matchmaker_expired(payload: Dictionary)
 signal matchmaker_failed(payload: Dictionary)
 signal presence_updated(payload: Dictionary)
 signal error_received(payload: Dictionary)
+# Dev-mode only: a Lua callback error while handling this player's input.
+# Gated server-side behind ASOBI_DEV_ERRORS=true; production keeps script
+# errors server-side.
+signal game_error(callback: String, script: String, message: String)
 signal vote_cast_ok(payload: Dictionary)
 signal vote_veto_ok(payload: Dictionary)
 # Server-pushed vote lifecycle (asobi broadcasts these as match.vote_*).
@@ -297,6 +301,9 @@ func _handle_message(raw: String) -> void:
 				_revoked = true
 				session_revoked.emit()
 			error_received.emit(payload)
+		# Dev diagnostics
+		"game.error":
+			game_error.emit(payload.get("callback", ""), payload.get("script", ""), payload.get("message", ""))
 		_:
 			# Handle dynamic match/world events
 			if type.begins_with("match."):
