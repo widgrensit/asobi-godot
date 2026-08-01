@@ -24,6 +24,10 @@ signal matchmaker_expired(payload: Dictionary)
 signal matchmaker_failed(payload: Dictionary)
 signal presence_updated(payload: Dictionary)
 signal error_received(payload: Dictionary)
+# Dev-mode only: a Lua callback error while handling this player's input.
+# Gated server-side behind ASOBI_DEV_ERRORS=true; production keeps script
+# errors server-side.
+signal game_error(callback: String, script: String, message: String)
 signal vote_cast_ok(payload: Dictionary)
 signal vote_veto_ok(payload: Dictionary)
 # Server-pushed vote lifecycle (asobi broadcasts these as match.vote_*).
@@ -203,6 +207,14 @@ func _send_fire_and_forget(type: String, payload: Dictionary) -> void:
 	var msg := JSON.stringify({"type": type, "payload": payload})
 	_socket.send_text(msg)
 
+## Dictionary.get(key, default) only returns the default when key is
+## absent, not when it's present-but-null or a non-string. A typed signal
+## emit crashes with "Cannot convert argument from Nil/int/... to String"
+## on either case and the handler never runs - the worst outcome for a
+## signal whose whole purpose is surfacing a diagnostic. Coerce instead.
+func _as_text(value: Variant) -> String:
+	return "" if value == null else str(value)
+
 func _handle_message(raw: String) -> void:
 	var parsed: Variant = JSON.parse_string(raw)
 	if parsed == null or not parsed is Dictionary:
@@ -282,7 +294,7 @@ func _handle_message(raw: String) -> void:
 		"world.terrain":
 			var coords_arr: Array = payload.get("coords", [0, 0])
 			var coords := Vector2i(int(coords_arr[0]), int(coords_arr[1])) if coords_arr.size() >= 2 else Vector2i.ZERO
-			var data: String = payload.get("data", "")
+			var data: String = _as_text(payload.get("data"))
 			world_terrain.emit(coords, data)
 		"world.list":
 			world_list_received.emit(payload)
@@ -297,6 +309,13 @@ func _handle_message(raw: String) -> void:
 				_revoked = true
 				session_revoked.emit()
 			error_received.emit(payload)
+		# Dev diagnostics
+		"game.error":
+			game_error.emit(
+				_as_text(payload.get("callback")),
+				_as_text(payload.get("script")),
+				_as_text(payload.get("message"))
+			)
 		_:
 			# Handle dynamic match/world events
 			if type.begins_with("match."):

@@ -21,6 +21,7 @@ const FIXTURE_DIR := "res://test/fixtures"
 # between this map and the SDK is caught by the assertions below.
 const EXPECTED := {
 	"error": "error_received",
+	"game.error": "game_error",
 	"session.connected": "connected",
 	"session.heartbeat": "heartbeat",
 	"match.state": "match_state",
@@ -99,7 +100,7 @@ func _run() -> void:
 		var realtime: Node = _AsobiRealtimeScript.new(null)
 		root.add_child(realtime)
 		var fired := [false]
-		var on_signal := func(_a = null, _b = null) -> void: fired[0] = true
+		var on_signal := func(_a = null, _b = null, _c = null) -> void: fired[0] = true
 		realtime.connect(expected_signal, on_signal)
 		realtime._handle_message(raw)
 		if fired[0]:
@@ -108,7 +109,69 @@ func _run() -> void:
 			_fail("%s did not fire signal '%s'" % [mtype, expected_signal])
 		realtime.queue_free()
 
+	_run_game_error_fields()
+	_run_game_error_malformed_payload()
+
 	print("[dispatch] %d passed, %d failed (%d fixtures)" % [_pass_count, _fail_count, fixtures.size()])
+
+# game_error carries three positional fields (not a single payload Dictionary
+# like most signals); assert the fixture's exact values land in order.
+func _run_game_error_fields() -> void:
+	var raw := _read_file("%s/game.error.json" % FIXTURE_DIR)
+	if raw == "":
+		_fail("could not read game.error.json")
+		return
+
+	var realtime: Node = _AsobiRealtimeScript.new(null)
+	root.add_child(realtime)
+	var got := {"callback": "", "script": "", "message": ""}
+	var on_signal := func(callback: String, script: String, message: String) -> void:
+		got["callback"] = callback
+		got["script"] = script
+		got["message"] = message
+	realtime.connect("game_error", on_signal)
+	realtime._handle_message(raw)
+	realtime.queue_free()
+
+	var expected := {"callback": "handle_input", "script": "match.lua", "message": "bad arithmetic + on nil, 1"}
+	if got == expected:
+		_pass("game.error -> game_error fields match fixture")
+	else:
+		_fail("game.error fields mismatch: %s" % [got])
+
+# A present-but-null or non-string field must not crash signal delivery.
+# Dictionary.get(key, default) only substitutes the default when the key
+# is absent - a typed signal emit given a raw null/int argument raises
+# "Cannot convert argument from Nil/int to String" and the handler never
+# runs, which is the worst failure mode for a diagnostic-surfacing event.
+func _run_game_error_malformed_payload() -> void:
+	var raw := JSON.stringify({
+		"type": "game.error",
+		"payload": {"callback": "handle_input", "script": null, "message": 42}
+	})
+
+	var realtime: Node = _AsobiRealtimeScript.new(null)
+	root.add_child(realtime)
+	var fired := [false]
+	var got := {"callback": "", "script": "", "message": ""}
+	var on_signal := func(callback: String, script: String, message: String) -> void:
+		fired[0] = true
+		got["callback"] = callback
+		got["script"] = script
+		got["message"] = message
+	realtime.connect("game_error", on_signal)
+	realtime._handle_message(raw)
+	realtime.queue_free()
+
+	# JSON numbers parse as float in GDScript, so 42 round-trips as "42.0" -
+	# the point of this test is "it doesn't crash and coerces to a string",
+	# not a specific numeric format.
+	if not fired[0]:
+		_fail("game.error with a null/non-string field did not fire the signal")
+	elif got["script"] != "" or got["message"] != "42.0":
+		_fail("game.error malformed-field coercion mismatch: %s" % [got])
+	else:
+		_pass("game.error tolerates a null/non-string field without crashing")
 
 func _list_fixtures() -> Array:
 	var out: Array = []
