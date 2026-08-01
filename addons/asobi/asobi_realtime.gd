@@ -29,10 +29,16 @@ signal error_received(payload: Dictionary)
 # errors server-side.
 signal game_error(callback: String, script: String, message: String)
 # Unconditional server push for game.send(player_id, message) (production and
-# dev both). message is untyped on the wire - a Lua script can pass a string,
-# a number, or a table - so this stays Variant rather than coercing to String
-# and losing the real value/type the game script sent.
-signal game_message(message: Variant)
+# dev both). The payload is a Dictionary with a "message" key whose value can
+# be a String, number, bool, null, Array, or nested Dictionary - Lua can send
+# any JSON-representable value via game.send/2. The server deliberately wraps
+# the value in {"message": <value>} rather than sending it bare, so it can
+# carry more fields later without a breaking change; this signal keeps the
+# wrapper Dictionary intact for the same reason (unwrapping to a single
+# positional param would make adding a second field a breaking signal-arity
+# change). Connect with an untyped/Variant-accepting callable and branch on
+# typeof(payload.get("message")) rather than assuming a fixed type.
+signal game_message(payload: Dictionary)
 signal vote_cast_ok(payload: Dictionary)
 signal vote_veto_ok(payload: Dictionary)
 # Server-pushed vote lifecycle (asobi broadcasts these as match.vote_*).
@@ -323,7 +329,7 @@ func _handle_message(raw: String) -> void:
 			)
 		# Production game.send(player_id, message) push.
 		"game.message":
-			game_message.emit(payload.get("message"))
+			game_message.emit(payload)
 		_:
 			# Handle dynamic match/world events
 			if type.begins_with("match."):
