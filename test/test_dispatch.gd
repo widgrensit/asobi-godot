@@ -22,6 +22,7 @@ const FIXTURE_DIR := "res://test/fixtures"
 const EXPECTED := {
 	"error": "error_received",
 	"game.error": "game_error",
+	"game.message": "game_message",
 	"session.connected": "connected",
 	"session.heartbeat": "heartbeat",
 	"match.state": "match_state",
@@ -111,6 +112,8 @@ func _run() -> void:
 
 	_run_game_error_fields()
 	_run_game_error_malformed_payload()
+	_run_game_message_string_value()
+	_run_game_message_non_string_value()
 
 	print("[dispatch] %d passed, %d failed (%d fixtures)" % [_pass_count, _fail_count, fixtures.size()])
 
@@ -172,6 +175,58 @@ func _run_game_error_malformed_payload() -> void:
 		_fail("game.error malformed-field coercion mismatch: %s" % [got])
 	else:
 		_pass("game.error tolerates a null/non-string field without crashing")
+
+# game_message must carry the fixture's string value unchanged.
+func _run_game_message_string_value() -> void:
+	var raw := _read_file("%s/game.message.json" % FIXTURE_DIR)
+	if raw == "":
+		_fail("could not read game.message.json")
+		return
+
+	var realtime: Node = _AsobiRealtimeScript.new(null)
+	root.add_child(realtime)
+	var got := [null]
+	var on_signal := func(message: Variant) -> void: got[0] = message
+	realtime.connect("game_message", on_signal)
+	realtime._handle_message(raw)
+	realtime.queue_free()
+
+	if got[0] == "jij bent speler nummer 3":
+		_pass("game.message -> game_message carries the fixture string")
+	else:
+		_fail("game.message string value mismatch: %s" % [got[0]])
+
+# game.send/2 accepts any Lua value - a number or a table - not just a
+# string. game_message is typed Variant specifically to preserve that,
+# unlike game_error's message field which is display-only and coerced to
+# String via _as_text. Prove a non-string value round-trips as-is rather
+# than crashing or getting silently stringified.
+func _run_game_message_non_string_value() -> void:
+	var raw := JSON.stringify({
+		"type": "game.message",
+		"payload": {"message": {"hp": 3, "items": ["sword", "shield"]}}
+	})
+
+	var realtime: Node = _AsobiRealtimeScript.new(null)
+	root.add_child(realtime)
+	var fired := [false]
+	var got := [null]
+	var on_signal := func(message: Variant) -> void:
+		fired[0] = true
+		got[0] = message
+	realtime.connect("game_message", on_signal)
+	realtime._handle_message(raw)
+	realtime.queue_free()
+
+	# JSON numbers parse as float in GDScript (see the game.error malformed
+	# test above), so hp round-trips as 3.0.
+	var expected := {"hp": 3.0, "items": ["sword", "shield"]}
+	if not fired[0]:
+		_fail("game.message with a non-string value did not fire the signal")
+	elif got[0] != expected:
+		_fail("game.message non-string value mismatch: %s" % [got[0]])
+	else:
+		_pass("game.message preserves a non-string (table) value")
 
 func _list_fixtures() -> Array:
 	var out: Array = []

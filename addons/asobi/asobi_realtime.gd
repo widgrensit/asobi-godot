@@ -28,6 +28,11 @@ signal error_received(payload: Dictionary)
 # Gated server-side behind ASOBI_DEV_ERRORS=true; production keeps script
 # errors server-side.
 signal game_error(callback: String, script: String, message: String)
+# Unconditional server push for game.send(player_id, message) (production and
+# dev both). message is untyped on the wire - a Lua script can pass a string,
+# a number, or a table - so this stays Variant rather than coercing to String
+# and losing the real value/type the game script sent.
+signal game_message(message: Variant)
 signal vote_cast_ok(payload: Dictionary)
 signal vote_veto_ok(payload: Dictionary)
 # Server-pushed vote lifecycle (asobi broadcasts these as match.vote_*).
@@ -316,6 +321,9 @@ func _handle_message(raw: String) -> void:
 				_as_text(payload.get("script")),
 				_as_text(payload.get("message"))
 			)
+		# Production game.send(player_id, message) push.
+		"game.message":
+			game_message.emit(payload.get("message"))
 		_:
 			# Handle dynamic match/world events
 			if type.begins_with("match."):
