@@ -16,8 +16,11 @@ var _failures := 0
 class CapturingRealtime:
 	extends "res://addons/asobi/asobi_realtime.gd"
 	var sent: Array = []
-	func _send(type: String, payload: Dictionary) -> void:
+	# Returns the cid, matching the parent: rpc_call needs it to correlate,
+	# and GDScript refuses an override whose signature differs.
+	func _send(type: String, payload: Dictionary) -> String:
 		sent.append({"type": type, "payload": payload})
+		return str(sent.size())
 
 func _check(cond: bool, msg: String) -> void:
 	if cond:
