@@ -31,6 +31,9 @@ jobs:
       - name: Run dispatch test
         run: godot --headless --path . -s test/test_dispatch.gd
 
+      - name: Run rpc test
+        run: godot --headless --path . -s test/test_rpc.gd
+
       - name: Run auth test
         run: godot --headless --path . -s test/test_auth.gd
 

@@ -55,6 +55,14 @@ signal world_phase_changed(payload: Dictionary)
 signal world_finished(payload: Dictionary)
 signal world_event(event_name: String, payload: Dictionary)
 
+## An extension's RPC method answered. `cid` is what `rpc()` returned, so a
+## listener can tell its own call's reply from somebody else's.
+signal rpc_ok(cid: String, result: Dictionary)
+## An extension's RPC method refused. `error` is the shared error object:
+## `code`, `message`, `details`. Branch on `code` - `message` is prose for a
+## human and may change.
+signal rpc_error(cid: String, error: Dictionary)
+
 var _client: AsobiClient
 var _socket := WebSocketPeer.new()
 var _is_connected := false
@@ -208,11 +216,37 @@ func world_input(data: Dictionary) -> void:
 func send_heartbeat() -> void:
 	_send_fire_and_forget("session.heartbeat", {})
 
-func _send(type: String, payload: Dictionary) -> void:
+func _send(type: String, payload: Dictionary) -> String:
 	_cid_counter += 1
 	var cid := str(_cid_counter)
 	var msg := JSON.stringify({"type": type, "payload": payload, "cid": cid})
 	_socket.send_text(msg)
+	return cid
+
+## Call an extension's RPC method. Returns the `cid` the reply will carry.
+##
+## Named for the wire frame it sends, because `rpc` itself belongs to Godot:
+## `Node.rpc(StringName, ...)` is the engine's own multiplayer call and
+## shadowing it is a parse error.
+##
+##     var cid := realtime.rpc_call("quests.claim", {"quest_key": "daily"})
+##     realtime.rpc_ok.connect(func(reply_cid, result):
+##         if reply_cid == cid: ...)
+##
+## Or, since `on_reply` is usually what you want:
+##
+##     realtime.rpc_call("quests.claim", {"quest_key": "daily"},
+##         func(ok, data): ...)
+##
+## `on_reply` is called once with `(ok: bool, data: Dictionary)` - the result
+## object when `ok`, the error object when not. `params` and `result` are
+## always dictionaries, so either can grow a field without breaking a shipped
+## game.
+func rpc_call(method: String, params: Dictionary = {}, on_reply: Callable = Callable()) -> String:
+	var cid := _send("rpc.call", {"protocol": 1, "method": method, "params": params})
+	if on_reply.is_valid():
+		_pending[cid] = on_reply
+	return cid
 
 func _send_fire_and_forget(type: String, payload: Dictionary) -> void:
 	var msg := JSON.stringify({"type": type, "payload": payload})
@@ -226,6 +260,26 @@ func _send_fire_and_forget(type: String, payload: Dictionary) -> void:
 func _as_text(value: Variant) -> String:
 	return "" if value == null else str(value)
 
+func _handle_rpc_reply(type: String, cid: String, payload: Dictionary) -> void:
+	var ok := type == "rpc.ok"
+	var data: Dictionary = payload.get("result", {}) if ok else payload.get("error", {})
+	if not data is Dictionary:
+		data = {}
+	# An error object with nothing in it still has to carry a code, or a
+	# caller branching on `code` gets an empty string and no way to tell a
+	# server defect from a domain outcome.
+	if not ok and not data.has("code"):
+		data["code"] = "internal"
+	if _pending.has(cid):
+		var on_reply: Callable = _pending[cid]
+		_pending.erase(cid)
+		if on_reply.is_valid():
+			on_reply.call(ok, data)
+	if ok:
+		rpc_ok.emit(cid, data)
+	else:
+		rpc_error.emit(cid, data)
+
 func _handle_message(raw: String) -> void:
 	var parsed: Variant = JSON.parse_string(raw)
 	if parsed == null or not parsed is Dictionary:
@@ -234,6 +288,14 @@ func _handle_message(raw: String) -> void:
 	var msg: Dictionary = parsed
 	var type: String = msg.get("type", "")
 	var payload: Dictionary = msg.get("payload", {})
+
+	# Correlated replies never reach the dispatch table: they belong to one
+	# call, not to every listener. `_pending` was declared and never populated
+	# before rpc() existed, so a cid was minted for every send and read by
+	# nobody.
+	if type == "rpc.ok" or type == "rpc.error":
+		_handle_rpc_reply(type, msg.get("cid", ""), payload)
+		return
 
 	match type:
 		# Session
@@ -321,14 +383,14 @@ func _handle_message(raw: String) -> void:
 				session_revoked.emit()
 			error_received.emit(payload)
 		# Dev diagnostics
-		"game.error":
+		"game.error", "module.error":
 			game_error.emit(
 				_as_text(payload.get("callback")),
 				_as_text(payload.get("script")),
 				_as_text(payload.get("message"))
 			)
 		# Production game.send(player_id, message) push.
-		"game.message":
+		"game.message", "module.message":
 			game_message.emit(payload)
 		_:
 			# Handle dynamic match/world events
