@@ -23,6 +23,8 @@ const EXPECTED := {
 	"error": "error_received",
 	"game.error": "game_error",
 	"game.message": "game_message",
+	"module.error": "game_error",
+	"module.message": "game_message",
 	"session.connected": "connected",
 	"session.heartbeat": "heartbeat",
 	"match.state": "match_state",
@@ -57,6 +59,12 @@ const EXPECTED := {
 	"world.finished": "world_finished",
 }
 
+# rpc.ok and rpc.error are replies, not events: they correlate to one call by
+# `cid` and never reach the dispatch table. They have fixtures, so they are
+# named here rather than left looking like an oversight; test_rpc.gd covers
+# the correlation.
+const CORRELATED := ["rpc.ok", "rpc.error"]
+
 var _pass_count := 0
 var _fail_count := 0
 
@@ -80,6 +88,8 @@ func _run() -> void:
 	# Every fixture must have an EXPECTED entry.
 	for name in fixtures:
 		var mtype := _strip_json(name)
+		if CORRELATED.has(mtype):
+			continue
 		if not EXPECTED.has(mtype):
 			_fail("fixture '%s' has no entry in EXPECTED — add a SDK signal mapping" % name)
 
