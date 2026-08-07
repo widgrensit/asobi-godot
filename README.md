@@ -125,6 +125,17 @@ if upgraded.has("error"):
 
 All of these store the returned tokens exactly like `login`, so the player stays signed in.
 
+#### Testing with two clients on one machine
+
+The saved pair identifies the machine, so two instances of the same project sign in as the same player: matchmaking will not pair them and their views drift. In a dev build, skip persistence and mint a throwaway guest per launch instead:
+
+```gdscript
+var creds := AsobiDevice.generate()
+var resp := await Asobi.auth.guest(creds["device_id"], creds["device_secret"])
+```
+
+For stable test players, open Debug > Customize Run Instances..., give each instance a `-- player=N` launch argument, and pass `{"path": "user://asobi_device_%s.json" % slot}` to `guest_device`. Full recipe, plus why two players can still land in separate matches: [Testing with multiple players](https://github.com/widgrensit/asobi/blob/main/guides/testing-multiple-players.md).
+
 ## Features
 
 - **Auth** - Register, login, guest / anonymous, token refresh
