@@ -63,15 +63,35 @@ func _send(client: AsobiClient, url: String, method: int, body: Dictionary = {},
 		return await _send(client, url, method, body, true)
 
 	if status_code >= 400:
-		var error_msg: String = (
-			parsed.get("error", "HTTP %d" % status_code)
-			if parsed is Dictionary
-			else "HTTP %d" % status_code
-		)
-		push_error("Asobi HTTP error: %s" % error_msg)
-		return {"error": error_msg, "status_code": status_code}
+		var failure := _failure(parsed, status_code)
+		push_error("Asobi HTTP error: %s" % failure["error"])
+		return failure
 
 	return parsed if parsed is Dictionary else {}
+
+## asobi answers every failure with a shared error object,
+## {"error": {"code": ..., "message": ..., "details": {...}}}. This used to read
+## `parsed.get("error", ...)` straight into a String-typed variable, so against
+## any current server it tried to assign a Dictionary to a String on EVERY error
+## path - a 404, a rate limit, a refused password. `code` is the half to branch
+## on; `error` stays the human-readable message it always was, so existing
+## callers keep working. A flat legacy string body is still accepted.
+func _failure(parsed: Variant, status_code: int) -> Dictionary:
+	var fallback := "HTTP %d" % status_code
+	if parsed is Dictionary:
+		var raw: Variant = parsed.get("error", null)
+		if raw is Dictionary:
+			var message: Variant = raw.get("message", fallback)
+			var code: Variant = raw.get("code", "")
+			return {
+				"error": message if message is String else fallback,
+				"code": code if code is String else "",
+				"details": raw.get("details", {}),
+				"status_code": status_code,
+			}
+		if raw is String:
+			return {"error": raw, "code": "", "status_code": status_code}
+	return {"error": fallback, "code": "", "status_code": status_code}
 
 func _is_auth_path(url: String) -> bool:
 	return url.contains("/api/v1/auth/")
