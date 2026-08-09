@@ -93,12 +93,27 @@ await Asobi.auth.guest_device({
 })
 ```
 
-Erase the stored pair to switch account or honour a "forget me" / delete-my-data request. The next `guest_device` mints a brand-new guest (`created = true`). This is local-only - pair it with `logout` to end the current session, or `upgrade_guest` first if the player wants to keep the guest:
+Erase the stored pair to switch account. The next `guest_device` mints a brand-new guest (`created = true`). This is local-only - pair it with `logout` to end the current session, or `upgrade_guest` first if the player wants to keep the guest:
 
 ```gdscript
 await Asobi.auth.logout()
 AsobiDevice.clear()  # pass the same path/store opts you signed in with
 ```
+
+#### Deleting the account
+
+Clearing the pair does **not** delete anything on the server - the account and its data are still there, just unreachable from this device. For an actual "delete my data" request, erase the account:
+
+```gdscript
+await Asobi.players.erase_self()                  # guest or provider-only account
+await Asobi.players.erase_self("secret123")       # account with a password
+```
+
+Irreversible: the player and everything the server holds for it go. Pass the password only for an account that has one - a guest has no credential to re-present, so its session is the confirmation. A wrong password comes back as `{"code": "player.confirmation_failed", "status_code": 403}` and changes nothing.
+
+On success the local session is cleared, because the server deleted the token pair in the same transaction. Anything afterwards on that session is a `401`; for a retried erase, read that as "it already worked".
+
+Needs a server carrying `POST /api/v1/players/me/erase`; older ones answer `404`.
 
 #### Bring your own credentials
 
