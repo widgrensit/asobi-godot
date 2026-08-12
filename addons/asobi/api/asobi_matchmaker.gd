@@ -6,12 +6,12 @@ var _client: AsobiClient
 func _init(client: AsobiClient) -> void:
 	_client = client
 
-func add(mode: String = "default", properties: Dictionary = {}, party: Array = []) -> Dictionary:
+# The controller builds its match params from `mode` and `properties` only;
+# there is no party queueing on this endpoint.
+func add(mode: String = "default", properties: Dictionary = {}) -> Dictionary:
 	var body := {"mode": mode}
 	if not properties.is_empty():
 		body["properties"] = properties
-	if not party.is_empty():
-		body["party"] = party
 	return await _client.http.post_request(_client, "/api/v1/matchmaker", body)
 
 func status(ticket_id: String) -> Dictionary:

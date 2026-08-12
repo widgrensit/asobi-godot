@@ -138,8 +138,16 @@ func match_list(mode: String = "", has_capacity: bool = false) -> void:
 		payload["has_capacity"] = true
 	_send("match.list", payload)
 
-func join_match(match_id: String) -> void:
-	_send("match.join", {"match_id": match_id})
+# `ctx` is an optional join context the server hands to the game module
+# untouched - an invite code, a password, a lobby slot. asobi never interprets
+# it, but it does bound it: at most 8 keys, keys up to 64 bytes, values that
+# are String, int or bool up to 256 bytes. Anything else is rejected with an
+# error frame. Omitted entirely when empty.
+func join_match(match_id: String, ctx: Dictionary = {}) -> void:
+	var payload := {"match_id": match_id}
+	if not ctx.is_empty():
+		payload["ctx"] = ctx
+	_send("match.join", payload)
 
 func send_match_input(input: Dictionary) -> void:
 	_send_fire_and_forget("match.input", input)
@@ -148,12 +156,12 @@ func leave_match() -> void:
 	_send("match.leave", {})
 
 # Matchmaker
-func add_to_matchmaker(mode: String = "default", properties: Dictionary = {}, party: Array = []) -> void:
+# The backend reads `mode` and `properties` only - there is no party queueing
+# on the wire, so nothing else belongs in this frame.
+func add_to_matchmaker(mode: String = "default", properties: Dictionary = {}) -> void:
 	var payload := {"mode": mode}
 	if not properties.is_empty():
 		payload["properties"] = properties
-	if not party.is_empty():
-		payload["party"] = party
 	_send("matchmaker.add", payload)
 
 func remove_from_matchmaker(ticket_id: String) -> void:
@@ -203,8 +211,13 @@ func world_create(mode: String) -> void:
 func world_find_or_create(mode: String) -> void:
 	_send("world.find_or_create", {"mode": mode})
 
-func world_join(world_id: String) -> void:
-	_send("world.join", {"world_id": world_id})
+# Mirrors join_match: `ctx` is the optional join context, passed to the game
+# module untouched and bounded by the same limits.
+func world_join(world_id: String, ctx: Dictionary = {}) -> void:
+	var payload := {"world_id": world_id}
+	if not ctx.is_empty():
+		payload["ctx"] = ctx
+	_send("world.join", payload)
 
 func world_leave() -> void:
 	_send("world.leave", {})
