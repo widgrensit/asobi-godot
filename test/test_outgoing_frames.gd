@@ -68,6 +68,36 @@ func _init() -> void:
 	rt.match_list()
 	_check(rt.sent[0]["payload"].is_empty(), "match_list with no filters sends an empty payload")
 
+	rt.sent.clear()
+	rt.join_match("m-1")
+	_check(not rt.sent[0]["payload"].has("ctx"), "join_match omits ctx when none is given")
+
+	rt.sent.clear()
+	rt.join_match("m-1", {"code": "AB12"})
+	var join_frame: Dictionary = rt.sent[0]
+	_check(join_frame["type"] == "match.join", "join_match sends match.join")
+	_check(join_frame["payload"]["ctx"] == {"code": "AB12"}, "join_match forwards ctx untouched")
+
+	rt.sent.clear()
+	rt.world_join("w-1")
+	_check(not rt.sent[0]["payload"].has("ctx"), "world_join omits ctx when none is given")
+
+	rt.sent.clear()
+	rt.world_join("w-1", {"code": "AB12"})
+	var world_join_frame: Dictionary = rt.sent[0]
+	_check(world_join_frame["type"] == "world.join", "world_join sends world.join")
+	_check(world_join_frame["payload"]["ctx"] == {"code": "AB12"}, "world_join forwards ctx untouched")
+
+	rt.sent.clear()
+	rt.add_to_matchmaker("demo", {"rank": 3})
+	var mm_frame: Dictionary = rt.sent[0]
+	_check(mm_frame["type"] == "matchmaker.add", "add_to_matchmaker sends matchmaker.add")
+	_check(
+		mm_frame["payload"].keys().size() == 2,
+		"matchmaker.add carries only mode and properties - the server reads nothing else"
+	)
+	_check(not mm_frame["payload"].has("party"), "matchmaker.add sends no party field")
+
 	if _failures > 0:
 		print("FAILED: ", _failures)
 		quit(1)
