@@ -69,8 +69,8 @@ signal world_finished(payload: Dictionary)
 ## `world.ack` second; on a broadcast where nothing changed the ack arrives
 ## alone, with no `world.tick` before it. Prune the pending-input buffer and
 ## replay it here rather than on the tick. Once a zone holds a seq for you it
-## repeats it on every one of its broadcast ticks, so the same `seq` under a
-## later `tick` is normal.
+## repeats it on every broadcast tick, so the same `seq` under a later `tick`
+## is normal.
 signal world_ack(payload: Dictionary)
 signal world_event(event_name: String, payload: Dictionary)
 
