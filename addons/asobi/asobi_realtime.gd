@@ -59,8 +59,12 @@ signal world_finished(payload: Dictionary)
 ## client-side prediction. Payload keys: `tick`, `seq` - both floats, because
 ## `JSON.parse_string` decodes every JSON number as one; cast with `int()`.
 ##
-## For a given tick `world.tick` arrives first and `world.ack` second, so prune
-## the pending-input buffer and replay it here rather than on the tick.
+## On a broadcast tick that produced deltas `world.tick` arrives first and
+## `world.ack` second; on a broadcast tick where nothing changed the ack
+## arrives alone, with no `world.tick` before it. Prune the pending-input
+## buffer and replay it here rather than on the tick. Once the server holds a
+## seq for you it repeats it every broadcast tick, so the same `seq` under a
+## later `tick` is normal.
 signal world_ack(payload: Dictionary)
 signal world_event(event_name: String, payload: Dictionary)
 
@@ -244,9 +248,12 @@ func world_leave() -> void:
 ## via the `world_ack` signal. It rides as a top-level sibling of `payload` on
 ## the wire, never nested inside it, and only when `seq >= 0`, so `seq` 0 is a
 ## real value. Omit it to send unsequenced input, which stamps no seq on the
-## frame and gets no ack. The server accepts 0 to 2^53 - 1 and silently ignores
-## an input outside that range, so count up from 0 rather than seeding the
-## counter from a timestamp.
+## frame and gets no ack.
+##
+## The server accepts 0 to 2^53 - 1. Outside that range the seq is ignored, not
+## the input: the input is still queued and applied to the world as normal, only
+## the acknowledgement skips it. GDScript ints are 64-bit and reach far higher,
+## so count up from 0 rather than seeding the counter from a timestamp.
 func world_input(data: Dictionary, seq: int = -1) -> void:
 	_send_fire_and_forget("world.input", data, seq)
 

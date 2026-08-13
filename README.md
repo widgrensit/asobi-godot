@@ -169,7 +169,7 @@ World signals: `world_joined`, `world_left`, `world_tick`, `world_terrain(coords
 {"type": "world.tick", "payload": {"tick": 42, "updates": [{"op": "u", "id": "e1", "x": 3}]}}
 ```
 
-`op` is `a` (added, with the entity's full state), `u` (updated, only the fields that changed) or `r` (removed). The snapshot you get on joining lists every entity as an `a`; after that a frame mentions an entity solely when something about it changed, and frames arrive once per `broadcast_interval` simulation ticks (default 3). Fold each frame into your own entity map - do not treat one frame as the world.
+`op` is `a` (added, with the entity's full state), `u` (updated, only the fields that changed) or `r` (removed). Every zone subscription delivers a full `op: "a"` snapshot of that zone's entities, joining and each zone crossing alike, because crossing into a new zone subscribes you to it. Between snapshots a frame mentions an entity solely when something about it changed, and frames arrive at most once per `broadcast_interval` simulation ticks (default 3): a zone where nothing changed sends no frame at all. Fold each frame into your own entity map - do not treat one frame as the world. `op` and `id` are wire metadata, so keep them out of the state you accumulate.
 
 ### Predicted input and `world_ack`
 
@@ -182,7 +182,7 @@ World signals: `world_joined`, `world_left`, `world_tick`, `world_terrain(coords
 
 `seq` rides as a top-level sibling of `payload`, never nested inside it. The ack arrives as `world_ack(payload)`. `JSON.parse_string` decodes every JSON number as a float, so `payload.tick` and `payload.seq` reach the handler as `42.0` and `412.0` (`TYPE_FLOAT`), not ints - cast with `int()` before comparing them against your own counter.
 
-Reconciliation is yours to write: keep a counter, buffer each predicted input under its `seq`, and on an ack drop everything up to `payload.seq` and replay the rest on top of the state you have accumulated from `world_tick`.
+Reconciliation is yours to write: keep a counter, buffer each predicted input under its `seq`, and on an ack drop everything up to `payload.seq` and replay the rest on top of the state you have accumulated from `world_tick`. `_apply_input` and `_reset_to_server` below are stubs for you to fill in - they are the game-specific half, and everything else runs as pasted.
 
 ```gdscript
 var _seq := 0
@@ -204,10 +204,10 @@ func _on_tick(payload: Dictionary) -> void:
         var id: String = str(update.get("id", ""))
         match update.get("op", ""):
             "a":
-                _entities[id] = update.duplicate()
+                _entities[id] = _fields(update)
             "u":
                 if _entities.has(id):
-                    _entities[id].merge(update, true)
+                    _entities[id].merge(_fields(update), true)
             "r":
                 _entities.erase(id)
 
@@ -218,14 +218,31 @@ func _on_ack(payload: Dictionary) -> void:
     _reset_to_server(_entities)
     for input in _predicted:
         _apply_input(input["data"])
+
+# Drop the wire metadata: merging `op` into accumulated state would rewrite it
+# on every delta, and `id` is already the key.
+func _fields(update: Dictionary) -> Dictionary:
+    var out := update.duplicate()
+    out.erase("op")
+    out.erase("id")
+    return out
+
+# Yours: apply one input to your local player.
+func _apply_input(data: Dictionary) -> void:
+    pass
+
+# Yours: snap your local player back onto the authoritative state, so the
+# replay above starts from what the server confirmed.
+func _reset_to_server(entities: Dictionary) -> void:
+    pass
 ```
 
 - Opt-in: the server acks only connections that stamped a `seq`. Connect to `world_ack` but never pass one and nothing ever arrives, with no error.
-- The ack is a high-water mark, not a receipt per input - one `seq`, the highest consumed as of `tick`. It is sent per connection and never rides on the shared `world.tick` broadcast.
+- The ack is a high-water mark, not a receipt per input - one `seq`, the highest consumed as of `tick`. Once the server holds one for you it repeats it every broadcast tick, so the same `seq` arriving again, with a later `tick`, is normal and means nothing new was consumed. It is sent per connection and never rides on the shared `world.tick` broadcast.
 - A rejected input still advances the ack, so a dropped input cannot strand the client.
-- Prune and replay in the ack handler, not the tick handler. For a given tick the server sends `world.tick` first and `world.ack` second, so a replay driven off the tick has not seen the new ack yet and re-applies inputs the server has already consumed.
+- Prune and replay in the ack handler, not the tick handler. On a broadcast tick that produced deltas the server sends `world.tick` first and `world.ack` second on your connection, so a replay driven off the tick has not seen the new ack yet and re-applies inputs the server has already consumed. On a broadcast tick where nothing changed there is no `world.tick` at all and the ack arrives alone, which a tick-driven replay misses entirely.
 - The `-1` default means unsequenced. Only `seq >= 0` is stamped, and `seq` 0 is a real value, so a counter starting at 0 is fine.
-- The server accepts `0 <= seq <= 2^53 - 1` and silently ignores an input outside that range, ack included. GDScript ints are 64-bit and reach far higher, so a counter seeded from a nanosecond timestamp is out of range and never gets an ack; count up from 0.
+- The server accepts `0 <= seq <= 2^53 - 1`. Outside that range the `seq` is ignored, not the input: the input is still queued and applied to the world exactly as normal, and only the acknowledgement skips it. Nor does the ack stream stop - if a valid `seq` was recorded earlier, acks keep arriving with that old high-water mark, they simply stop advancing. GDScript ints are 64-bit and reach far higher, so a counter seeded from a nanosecond timestamp never advances the ack; count up from 0.
 - Set `broadcast_interval` to 1 in the world mode config for an ack every tick; the default is 3. See [world server](https://asobi.dev/docs/world-server).
 - Needs an asobi server >= v0.84.0; older ones never send `world.ack`, and that silence is not an error.
 - Needs this addon >= v0.18.0; earlier versions have no `world_ack` signal to connect to and no `seq` argument on `world_input`.
