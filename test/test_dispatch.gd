@@ -58,6 +58,7 @@ const EXPECTED := {
 	"world.left": "world_left",
 	"world.phase_changed": "world_phase_changed",
 	"world.finished": "world_finished",
+	"world.ack": "world_ack",
 }
 
 # rpc.ok and rpc.error are replies, not events: they correlate to one call by

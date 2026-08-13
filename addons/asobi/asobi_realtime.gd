@@ -53,6 +53,11 @@ signal world_terrain(coords: Vector2i, data: String)
 signal world_list_received(payload: Dictionary)
 signal world_phase_changed(payload: Dictionary)
 signal world_finished(payload: Dictionary)
+## Fires on `world.ack` - the server's acknowledgement of the highest
+## `world.input` `seq` it has consumed for you as of the payload's `tick`. Sent
+## only to connections that stamped a `seq` on their input; use it to reconcile
+## client-side prediction. Payload keys: `tick`, `seq`.
+signal world_ack(payload: Dictionary)
 signal world_event(event_name: String, payload: Dictionary)
 
 ## An extension's RPC method answered. `cid` is what `rpc()` returned, so a
@@ -228,8 +233,12 @@ func world_join(world_id: String, ctx: Dictionary = {}) -> void:
 func world_leave() -> void:
 	_send("world.leave", {})
 
-func world_input(data: Dictionary) -> void:
-	_send_fire_and_forget("world.input", data)
+# Pass `seq` - a per-input sequence number your client increments - to opt into
+# world.ack reconciliation; the server echoes back the highest seq it has
+# consumed via the world_ack signal. Omit it to send unsequenced input, which
+# stamps no seq on the frame.
+func world_input(data: Dictionary, seq: int = -1) -> void:
+	_send_fire_and_forget("world.input", data, seq)
 
 # Session
 func send_heartbeat() -> void:
@@ -267,8 +276,13 @@ func rpc_call(method: String, params: Dictionary = {}, on_reply: Callable = Call
 		_pending[cid] = on_reply
 	return cid
 
-func _send_fire_and_forget(type: String, payload: Dictionary) -> void:
-	var msg := JSON.stringify({"type": type, "payload": payload})
+func _send_fire_and_forget(type: String, payload: Dictionary, seq: int = -1) -> void:
+	var frame := {"type": type, "payload": payload}
+	# seq rides as a top-level sibling of payload, never nested, and only when
+	# the caller opts in. >= 0 so seq 0 is stamped as a real value; -1 = unset.
+	if seq >= 0:
+		frame["seq"] = seq
+	var msg := JSON.stringify(frame)
 	_socket.send_text(msg)
 
 ## Dictionary.get(key, default) only returns the default when key is
@@ -394,6 +408,10 @@ func _handle_message(raw: String) -> void:
 			world_phase_changed.emit(payload)
 		"world.finished":
 			world_finished.emit(payload)
+		# Explicit arm: reclaim world.ack from the generic world.* passthrough
+		# below, where it would otherwise surface as world_event("ack", ...).
+		"world.ack":
+			world_ack.emit(payload)
 		# Errors
 		"error":
 			var reason: String = payload.get("reason", "")
