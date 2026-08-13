@@ -53,10 +53,24 @@ signal world_terrain(coords: Vector2i, data: String)
 signal world_list_received(payload: Dictionary)
 signal world_phase_changed(payload: Dictionary)
 signal world_finished(payload: Dictionary)
-## Fires on `world.ack` - the server's acknowledgement of the highest
-## `world.input` `seq` it has consumed for you as of the payload's `tick`. Sent
-## only to connections that stamped a `seq` on their input; use it to reconcile
-## client-side prediction. Payload keys: `tick`, `seq`.
+## Fires on `world.ack` - a zone's acknowledgement of the highest `world.input`
+## `seq` it has consumed for you as of the payload's `tick`. Sent only to
+## players that stamped a `seq` on their input; use it to reconcile client-side
+## prediction. Payload keys: `tick`, `seq` - both floats, because
+## `JSON.parse_string` decodes every JSON number as one; cast with `int()`.
+##
+## The ack is per zone, not per connection (widgrensit/asobi#477). Every
+## subscribed zone acks from its own record and the frame does not say which
+## one sent it, so after a crossing you get several acks per broadcast tick and
+## `seq` can go backwards. Keep a running maximum and ignore any ack that does
+## not beat it.
+##
+## On a zone broadcast that produced deltas `world.tick` arrives first and
+## `world.ack` second; on a broadcast where nothing changed the ack arrives
+## alone, with no `world.tick` before it. Prune the pending-input buffer and
+## replay it here rather than on the tick. Once a zone holds a seq for you it
+## repeats it on every broadcast tick, so the same `seq` under a later `tick`
+## is normal.
 signal world_ack(payload: Dictionary)
 signal world_event(event_name: String, payload: Dictionary)
 
@@ -233,10 +247,20 @@ func world_join(world_id: String, ctx: Dictionary = {}) -> void:
 func world_leave() -> void:
 	_send("world.leave", {})
 
-# Pass `seq` - a per-input sequence number your client increments - to opt into
-# world.ack reconciliation; the server echoes back the highest seq it has
-# consumed via the world_ack signal. Omit it to send unsequenced input, which
-# stamps no seq on the frame.
+## Send an input frame to the world you are in.
+##
+## Pass `seq` - a per-input sequence number your client increments - to opt into
+## world.ack reconciliation; the zone reports the highest seq it has consumed
+## via the `world_ack` signal, which is per zone and needs a running maximum -
+## see that signal. `seq` rides as a top-level sibling of `payload` on the wire,
+## never nested inside it, and only when `seq >= 0`, so `seq` 0 is a real value.
+## Omit it to send unsequenced input, which stamps no seq on the frame and gets
+## no ack.
+##
+## The server accepts 0 to 2^53 - 1. Outside that range the seq is ignored, not
+## the input: the input is still queued and applied to the world as normal, only
+## the acknowledgement skips it. GDScript ints are 64-bit and reach far higher,
+## so count up from 0 rather than seeding the counter from a timestamp.
 func world_input(data: Dictionary, seq: int = -1) -> void:
 	_send_fire_and_forget("world.input", data, seq)
 

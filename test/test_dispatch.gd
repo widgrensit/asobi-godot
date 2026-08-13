@@ -129,6 +129,7 @@ func _run() -> void:
 	_run_game_message_null_value()
 	_run_module_event_payload()
 	_run_module_event_unknown_event()
+	_run_world_ack_number_typing()
 
 	print("[dispatch] %d passed, %d failed (%d fixtures)" % [_pass_count, _fail_count, fixtures.size()])
 
@@ -333,6 +334,33 @@ func _run_module_event_unknown_event() -> void:
 		_fail("module.event unknown-event value mismatch: %s" % [got[0]])
 	else:
 		_pass("module.event surfaces an unfamiliar inner event name")
+
+# The wire carries tick and seq as JSON integers, but JSON.parse_string decodes
+# every number as a float, so a handler receives 42.0 / 412.0 rather than ints.
+# The README documents that and casts with int(); this pins the behaviour so the
+# documented cast cannot quietly become wrong advice.
+func _run_world_ack_number_typing() -> void:
+	var raw := _read_file("%s/world.ack.json" % FIXTURE_DIR)
+	if raw == "":
+		_fail("could not read world.ack.json")
+		return
+
+	var realtime: Node = _AsobiRealtimeScript.new(null)
+	root.add_child(realtime)
+	var got := [null]
+	var on_signal := func(payload: Dictionary) -> void: got[0] = payload
+	realtime.connect("world_ack", on_signal)
+	realtime._handle_message(raw)
+	realtime.queue_free()
+
+	if got[0] == null:
+		_fail("world.ack did not fire world_ack")
+	elif typeof(got[0]["tick"]) != TYPE_FLOAT or typeof(got[0]["seq"]) != TYPE_FLOAT:
+		_fail("world.ack numbers are no longer floats: %s" % [got[0]])
+	elif int(got[0]["tick"]) != 42 or int(got[0]["seq"]) != 412:
+		_fail("world.ack values mismatch after int() cast: %s" % [got[0]])
+	else:
+		_pass("world.ack tick/seq arrive as floats and int() recovers the values")
 
 func _list_fixtures() -> Array:
 	var out: Array = []
