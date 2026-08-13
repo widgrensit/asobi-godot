@@ -53,17 +53,23 @@ signal world_terrain(coords: Vector2i, data: String)
 signal world_list_received(payload: Dictionary)
 signal world_phase_changed(payload: Dictionary)
 signal world_finished(payload: Dictionary)
-## Fires on `world.ack` - the server's acknowledgement of the highest
-## `world.input` `seq` it has consumed for you as of the payload's `tick`. Sent
-## only to connections that stamped a `seq` on their input; use it to reconcile
-## client-side prediction. Payload keys: `tick`, `seq` - both floats, because
+## Fires on `world.ack` - a zone's acknowledgement of the highest `world.input`
+## `seq` it has consumed for you as of the payload's `tick`. Sent only to
+## players that stamped a `seq` on their input; use it to reconcile client-side
+## prediction. Payload keys: `tick`, `seq` - both floats, because
 ## `JSON.parse_string` decodes every JSON number as one; cast with `int()`.
 ##
-## On a broadcast tick that produced deltas `world.tick` arrives first and
-## `world.ack` second; on a broadcast tick where nothing changed the ack
-## arrives alone, with no `world.tick` before it. Prune the pending-input
-## buffer and replay it here rather than on the tick. Once the server holds a
-## seq for you it repeats it every broadcast tick, so the same `seq` under a
+## The ack is per zone, not per connection (widgrensit/asobi#477). Every
+## subscribed zone acks from its own record and the frame does not say which
+## one sent it, so after a crossing you get several acks per broadcast tick and
+## `seq` can go backwards. Keep a running maximum and ignore any ack that does
+## not beat it.
+##
+## On a zone broadcast that produced deltas `world.tick` arrives first and
+## `world.ack` second; on a broadcast where nothing changed the ack arrives
+## alone, with no `world.tick` before it. Prune the pending-input buffer and
+## replay it here rather than on the tick. Once a zone holds a seq for you it
+## repeats it on every one of its broadcast ticks, so the same `seq` under a
 ## later `tick` is normal.
 signal world_ack(payload: Dictionary)
 signal world_event(event_name: String, payload: Dictionary)
