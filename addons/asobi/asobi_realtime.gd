@@ -250,11 +250,12 @@ func world_leave() -> void:
 ## Send an input frame to the world you are in.
 ##
 ## Pass `seq` - a per-input sequence number your client increments - to opt into
-## world.ack reconciliation; the server reports the highest seq it has consumed
-## via the `world_ack` signal. It rides as a top-level sibling of `payload` on
-## the wire, never nested inside it, and only when `seq >= 0`, so `seq` 0 is a
-## real value. Omit it to send unsequenced input, which stamps no seq on the
-## frame and gets no ack.
+## world.ack reconciliation; the zone reports the highest seq it has consumed
+## via the `world_ack` signal, which is per zone and needs a running maximum -
+## see that signal. `seq` rides as a top-level sibling of `payload` on the wire,
+## never nested inside it, and only when `seq >= 0`, so `seq` 0 is a real value.
+## Omit it to send unsequenced input, which stamps no seq on the frame and gets
+## no ack.
 ##
 ## The server accepts 0 to 2^53 - 1. Outside that range the seq is ignored, not
 ## the input: the input is still queued and applied to the world as normal, only
