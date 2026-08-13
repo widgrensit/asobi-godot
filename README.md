@@ -151,6 +151,87 @@ var resp := await Asobi.auth.guest(creds["device_id"], creds["device_secret"])
 
 For stable test players, open Debug > Customize Run Instances..., give each instance a `-- player=N` launch argument, and pass `{"path": "user://asobi_device_%s.json" % slot}` to `guest_device`. Full recipe, plus why two players can still land in separate matches: [Testing with multiple players](https://github.com/widgrensit/asobi/blob/main/guides/testing-multiple-players.md).
 
+## Worlds and client-side prediction
+
+Worlds are server-ticked sessions you join over the socket:
+
+```gdscript
+Asobi.realtime.world_tick.connect(_on_tick)
+Asobi.realtime.world_join(world_id)
+Asobi.realtime.world_input({"move_x": 1})
+```
+
+World signals: `world_joined`, `world_left`, `world_tick`, `world_terrain(coords, data)`, `world_list_received`, `world_phase_changed`, `world_finished`, `world_ack`, and `world_event(event_name, payload)` for anything else the game module pushes.
+
+`world_tick` carries deltas, not a snapshot:
+
+```json
+{"type": "world.tick", "payload": {"tick": 42, "updates": [{"op": "u", "id": "e1", "x": 3}]}}
+```
+
+`op` is `a` (added, with the entity's full state), `u` (updated, only the fields that changed) or `r` (removed). The snapshot you get on joining lists every entity as an `a`; after that a frame mentions an entity solely when something about it changed, and frames arrive once per `broadcast_interval` simulation ticks (default 3). Fold each frame into your own entity map - do not treat one frame as the world.
+
+### Predicted input and `world_ack`
+
+`world_input(data: Dictionary, seq: int = -1)` takes a sequence number as its optional second argument. Stamp each input with your own increasing `seq` and the server answers on that connection with `world.ack`, carrying the highest `seq` it has consumed as of `tick`:
+
+```json
+{"type": "world.input", "seq": 412, "payload": {"move_x": 1}}
+{"type": "world.ack", "payload": {"tick": 42, "seq": 412}}
+```
+
+`seq` rides as a top-level sibling of `payload`, never nested inside it. The ack arrives as `world_ack(payload)`. `JSON.parse_string` decodes every JSON number as a float, so `payload.tick` and `payload.seq` reach the handler as `42.0` and `412.0` (`TYPE_FLOAT`), not ints - cast with `int()` before comparing them against your own counter.
+
+Reconciliation is yours to write: keep a counter, buffer each predicted input under its `seq`, and on an ack drop everything up to `payload.seq` and replay the rest on top of the state you have accumulated from `world_tick`.
+
+```gdscript
+var _seq := 0
+var _predicted: Array[Dictionary] = []
+var _entities: Dictionary = {}
+
+func _ready() -> void:
+    Asobi.realtime.world_ack.connect(_on_ack)
+    Asobi.realtime.world_tick.connect(_on_tick)
+
+func send_input(data: Dictionary) -> void:
+    _seq += 1
+    _predicted.append({"seq": _seq, "data": data})
+    Asobi.realtime.world_input(data, _seq)
+    _apply_input(data)
+
+func _on_tick(payload: Dictionary) -> void:
+    for update in payload.get("updates", []):
+        var id: String = str(update.get("id", ""))
+        match update.get("op", ""):
+            "a":
+                _entities[id] = update.duplicate()
+            "u":
+                if _entities.has(id):
+                    _entities[id].merge(update, true)
+            "r":
+                _entities.erase(id)
+
+func _on_ack(payload: Dictionary) -> void:
+    var acked := int(payload["seq"])
+    while not _predicted.is_empty() and _predicted[0]["seq"] <= acked:
+        _predicted.pop_front()
+    _reset_to_server(_entities)
+    for input in _predicted:
+        _apply_input(input["data"])
+```
+
+- Opt-in: the server acks only connections that stamped a `seq`. Connect to `world_ack` but never pass one and nothing ever arrives, with no error.
+- The ack is a high-water mark, not a receipt per input - one `seq`, the highest consumed as of `tick`. It is sent per connection and never rides on the shared `world.tick` broadcast.
+- A rejected input still advances the ack, so a dropped input cannot strand the client.
+- Prune and replay in the ack handler, not the tick handler. For a given tick the server sends `world.tick` first and `world.ack` second, so a replay driven off the tick has not seen the new ack yet and re-applies inputs the server has already consumed.
+- The `-1` default means unsequenced. Only `seq >= 0` is stamped, and `seq` 0 is a real value, so a counter starting at 0 is fine.
+- The server accepts `0 <= seq <= 2^53 - 1` and silently ignores an input outside that range, ack included. GDScript ints are 64-bit and reach far higher, so a counter seeded from a nanosecond timestamp is out of range and never gets an ack; count up from 0.
+- Set `broadcast_interval` to 1 in the world mode config for an ack every tick; the default is 3. See [world server](https://asobi.dev/docs/world-server).
+- Needs an asobi server >= v0.84.0; older ones never send `world.ack`, and that silence is not an error.
+- Needs this addon >= v0.18.0; earlier versions have no `world_ack` signal to connect to and no `seq` argument on `world_input`.
+
+Frame reference: [client-side prediction](https://asobi.dev/docs/protocols/websocket#client-side-prediction).
+
 ## Features
 
 - **Auth** - Register, login, guest / anonymous, token refresh
@@ -164,7 +245,7 @@ For stable test players, open Debug > Customize Run Instances..., give each inst
 - **Tournaments** - List, join
 - **Notifications** - List, read, delete
 - **Storage** - Cloud saves, generic key-value
-- **Realtime** - WebSocket with signals for matches, chat, presence, matchmaking
+- **Realtime** - WebSocket with signals for matches, worlds, chat, presence, matchmaking
 
 See the [WebSocket protocol guide](https://github.com/widgrensit/asobi/blob/main/guides/websocket-protocol.md) for the full event surface.
 

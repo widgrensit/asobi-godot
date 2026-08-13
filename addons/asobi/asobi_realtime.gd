@@ -56,7 +56,11 @@ signal world_finished(payload: Dictionary)
 ## Fires on `world.ack` - the server's acknowledgement of the highest
 ## `world.input` `seq` it has consumed for you as of the payload's `tick`. Sent
 ## only to connections that stamped a `seq` on their input; use it to reconcile
-## client-side prediction. Payload keys: `tick`, `seq`.
+## client-side prediction. Payload keys: `tick`, `seq` - both floats, because
+## `JSON.parse_string` decodes every JSON number as one; cast with `int()`.
+##
+## For a given tick `world.tick` arrives first and `world.ack` second, so prune
+## the pending-input buffer and replay it here rather than on the tick.
 signal world_ack(payload: Dictionary)
 signal world_event(event_name: String, payload: Dictionary)
 
@@ -233,10 +237,16 @@ func world_join(world_id: String, ctx: Dictionary = {}) -> void:
 func world_leave() -> void:
 	_send("world.leave", {})
 
-# Pass `seq` - a per-input sequence number your client increments - to opt into
-# world.ack reconciliation; the server echoes back the highest seq it has
-# consumed via the world_ack signal. Omit it to send unsequenced input, which
-# stamps no seq on the frame.
+## Send an input frame to the world you are in.
+##
+## Pass `seq` - a per-input sequence number your client increments - to opt into
+## world.ack reconciliation; the server reports the highest seq it has consumed
+## via the `world_ack` signal. It rides as a top-level sibling of `payload` on
+## the wire, never nested inside it, and only when `seq >= 0`, so `seq` 0 is a
+## real value. Omit it to send unsequenced input, which stamps no seq on the
+## frame and gets no ack. The server accepts 0 to 2^53 - 1 and silently ignores
+## an input outside that range, so count up from 0 rather than seeding the
+## counter from a timestamp.
 func world_input(data: Dictionary, seq: int = -1) -> void:
 	_send_fire_and_forget("world.input", data, seq)
 
