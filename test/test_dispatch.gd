@@ -25,6 +25,7 @@ const EXPECTED := {
 	"game.message": "game_message",
 	"module.error": "game_error",
 	"module.message": "game_message",
+	"module.event": "module_event",
 	"session.connected": "connected",
 	"session.heartbeat": "heartbeat",
 	"match.state": "match_state",
@@ -125,6 +126,8 @@ func _run() -> void:
 	_run_game_message_string_value()
 	_run_game_message_non_string_value()
 	_run_game_message_null_value()
+	_run_module_event_payload()
+	_run_module_event_unknown_event()
 
 	print("[dispatch] %d passed, %d failed (%d fixtures)" % [_pass_count, _fail_count, fixtures.size()])
 
@@ -273,6 +276,62 @@ func _run_game_message_null_value() -> void:
 		_fail("game.message null value mismatch: %s" % [got[0]])
 	else:
 		_pass("game.message tolerates a null message value without crashing")
+
+# module_event surfaces the whole payload of a named extension push, with
+# module (which extension), event (the event name), and data (its body) all
+# intact under their keys.
+func _run_module_event_payload() -> void:
+	var raw := _read_file("%s/module.event.json" % FIXTURE_DIR)
+	if raw == "":
+		_fail("could not read module.event.json")
+		return
+
+	var realtime: Node = _AsobiRealtimeScript.new(null)
+	root.add_child(realtime)
+	var fired := [false]
+	var got := [null]
+	var on_signal := func(payload: Dictionary) -> void:
+		fired[0] = true
+		got[0] = payload
+	realtime.connect("module_event", on_signal)
+	realtime._handle_message(raw)
+	realtime.queue_free()
+
+	if not fired[0]:
+		_fail("module.event did not fire the signal")
+	elif got[0].get("module") != "quests" or got[0].get("event") != "quests.completed":
+		_fail("module.event module/event mismatch: %s" % [got[0]])
+	elif got[0].get("data", {}).get("quest_id") != "01j8x000000000000000000042":
+		_fail("module.event data payload mismatch: %s" % [got[0]])
+	else:
+		_pass("module.event -> module_event carries module, event, and data")
+
+# The inner `event` name is data the app routes on, not a dispatch gate: an
+# unfamiliar name still surfaces via module_event rather than being dropped.
+# This is the conformance behaviour the 1.0 wire freeze needs.
+func _run_module_event_unknown_event() -> void:
+	var raw := JSON.stringify({
+		"type": "module.event",
+		"payload": {"module": "quests", "event": "mystery.happened", "data": {"n": 1}}
+	})
+
+	var realtime: Node = _AsobiRealtimeScript.new(null)
+	root.add_child(realtime)
+	var fired := [false]
+	var got := [null]
+	var on_signal := func(payload: Dictionary) -> void:
+		fired[0] = true
+		got[0] = payload
+	realtime.connect("module_event", on_signal)
+	realtime._handle_message(raw)
+	realtime.queue_free()
+
+	if not fired[0]:
+		_fail("module.event with an unfamiliar inner event was dropped instead of surfaced")
+	elif got[0].get("event") != "mystery.happened":
+		_fail("module.event unknown-event value mismatch: %s" % [got[0]])
+	else:
+		_pass("module.event surfaces an unfamiliar inner event name")
 
 func _list_fixtures() -> Array:
 	var out: Array = []

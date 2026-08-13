@@ -62,6 +62,12 @@ signal rpc_ok(cid: String, result: Dictionary)
 ## `code`, `message`, `details`. Branch on `code` - `message` is prose for a
 ## human and may change.
 signal rpc_error(cid: String, error: Dictionary)
+## A named push from an extension, unsolicited (unlike `rpc_ok`). Route on
+## `payload.module` (which extension) and `payload.event` (e.g.
+## `quests.completed`); `payload.data` carries the event body. The event name
+## is data, not a dispatch gate - an unfamiliar name still surfaces here. The
+## whole payload passes through so a new field never breaks a shipped game.
+signal module_event(payload: Dictionary)
 
 var _client: AsobiClient
 var _socket := WebSocketPeer.new()
@@ -405,6 +411,9 @@ func _handle_message(raw: String) -> void:
 		# Production game.send(player_id, message) push.
 		"game.message", "module.message":
 			game_message.emit(payload)
+		# Named push from an extension: payload.module/event/data.
+		"module.event":
+			module_event.emit(payload)
 		_:
 			# Handle dynamic match/world events
 			if type.begins_with("match."):
