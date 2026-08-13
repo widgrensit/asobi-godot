@@ -22,6 +22,14 @@ class CapturingRealtime:
 		sent.append({"type": type, "payload": payload})
 		return str(sent.size())
 
+	# Capture fire-and-forget frames whole so a test can assert the top-level
+	# `seq` sibling appears when stamped and is absent when unset.
+	func _send_fire_and_forget(type: String, payload: Dictionary, seq: int = -1) -> void:
+		var frame := {"type": type, "payload": payload}
+		if seq >= 0:
+			frame["seq"] = seq
+		sent.append(frame)
+
 func _check(cond: bool, msg: String) -> void:
 	if cond:
 		print("  ok  ", msg)
@@ -97,6 +105,24 @@ func _init() -> void:
 		"matchmaker.add carries only mode and properties - the server reads nothing else"
 	)
 	_check(not mm_frame["payload"].has("party"), "matchmaker.add sends no party field")
+
+	rt.sent.clear()
+	rt.world_input({"dir": "left"})
+	var input_frame: Dictionary = rt.sent[0]
+	_check(input_frame["type"] == "world.input", "world_input sends world.input")
+	_check(input_frame["payload"] == {"dir": "left"}, "world_input forwards data as payload")
+	_check(not input_frame.has("seq"), "world_input omits seq when none is given")
+
+	rt.sent.clear()
+	rt.world_input({"dir": "left"}, 7)
+	var seq_frame: Dictionary = rt.sent[0]
+	_check(seq_frame.get("seq") == 7, "world_input stamps seq as a top-level sibling of payload")
+	_check(typeof(seq_frame["seq"]) == TYPE_INT, "seq stays numeric, not stringified")
+	_check(not seq_frame["payload"].has("seq"), "seq is never nested inside payload")
+
+	rt.sent.clear()
+	rt.world_input({"dir": "left"}, 0)
+	_check(rt.sent[0].get("seq") == 0, "seq 0 is stamped, not treated as unset")
 
 	if _failures > 0:
 		print("FAILED: ", _failures)
