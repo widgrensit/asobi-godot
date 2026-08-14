@@ -1,3 +1,5 @@
 .godot/
 *.uid
 .DS_Store
+dist/
+*.zip
