@@ -87,6 +87,26 @@ func _init() -> void:
 	_check(join_frame["payload"]["ctx"] == {"code": "AB12"}, "join_match forwards ctx untouched")
 
 	rt.sent.clear()
+	rt.match_find_or_create("arena")
+	var foc_frame: Dictionary = rt.sent[0]
+	_check(
+		foc_frame["type"] == "match.find_or_create",
+		"match_find_or_create sends match.find_or_create"
+	)
+	_check(foc_frame["payload"]["mode"] == "arena", "match_find_or_create mode is passed through")
+	_check(
+		foc_frame["payload"].keys().size() == 1,
+		"match.find_or_create carries mode alone when no ctx is given"
+	)
+
+	rt.sent.clear()
+	rt.match_find_or_create("arena", {"code": "AB12"})
+	_check(
+		rt.sent[0]["payload"]["ctx"] == {"code": "AB12"},
+		"match_find_or_create forwards ctx untouched"
+	)
+
+	rt.sent.clear()
 	rt.world_join("w-1")
 	_check(not rt.sent[0]["payload"].has("ctx"), "world_join omits ctx when none is given")
 

@@ -166,6 +166,28 @@ func join_match(match_id: String, ctx: Dictionary = {}) -> void:
 		payload["ctx"] = ctx
 	_send("match.join", payload)
 
+# The match twin of world_find_or_create: get into a live match of `mode`,
+# spawning one if there is none. Prefer it over match_list then join_match,
+# which races - two clients reading the same empty listing each create a match.
+# This resolves server-side and is serialized, so simultaneous callers converge
+# on one match.
+#
+# `mode` is the whole payload; every other match parameter comes from the
+# server-side mode config. `ctx` is the same optional join context join_match
+# takes, bounded the same way and omitted when empty.
+#
+# The reply is match.joined, so it arrives on the match_joined signal exactly
+# as join_match's does. Refusals arrive as error frames: quick_play_disabled
+# (the mode has not set quick_play, which defaults to false for match modes),
+# match_capacity_reached, wrong_mode_type (a world mode), join_rate_limited.
+#
+# Needs an asobi server >= v0.85.0.
+func match_find_or_create(mode: String, ctx: Dictionary = {}) -> void:
+	var payload := {"mode": mode}
+	if not ctx.is_empty():
+		payload["ctx"] = ctx
+	_send("match.find_or_create", payload)
+
 func send_match_input(input: Dictionary) -> void:
 	_send_fire_and_forget("match.input", input)
 
