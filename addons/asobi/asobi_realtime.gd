@@ -181,7 +181,7 @@ func join_match(match_id: String, ctx: Dictionary = {}) -> void:
 # (the mode has not set quick_play, which defaults to false for match modes),
 # match_capacity_reached, wrong_mode_type (a world mode), join_rate_limited.
 #
-# Needs an asobi server >= v0.85.0.
+# Needs an asobi server >= v0.86.0.
 func match_find_or_create(mode: String, ctx: Dictionary = {}) -> void:
 	var payload := {"mode": mode}
 	if not ctx.is_empty():

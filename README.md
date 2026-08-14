@@ -166,7 +166,7 @@ Prefer it over `match_list` then `join_match`. The matchmaker groups co-queued t
 
 A mode opts in through its `quick_play` flag, which defaults to `false` for match modes; a mode that has not opted in is refused with `quick_play_disabled`. (`listed` is browser visibility, a separate axis.) The other refusals a caller can see are `match_capacity_reached` (the node-wide cap), `wrong_mode_type` (a world mode) and `join_rate_limited`, which shares its bucket with `match.join` and `world.join`. All of them arrive on `error_received`.
 
-- Needs an asobi server >= v0.85.0.
+- Needs an asobi server >= v0.86.0.
 - Needs this addon >= v0.19.0; earlier versions have no `match_find_or_create` to call.
 
 The world twin is `world_find_or_create(mode)`.
