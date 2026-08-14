@@ -172,14 +172,16 @@ func join_match(match_id: String, ctx: Dictionary = {}) -> void:
 # This resolves server-side and is serialized, so simultaneous callers converge
 # on one match.
 #
-# `mode` is the whole payload; every other match parameter comes from the
+# `mode` is the only match parameter you supply; every other one comes from the
 # server-side mode config. `ctx` is the same optional join context join_match
-# takes, bounded the same way and omitted when empty.
+# takes, bounded the same way, omitted when empty and handed to the game's join
+# callback just as match.join's is.
 #
 # The reply is match.joined, so it arrives on the match_joined signal exactly
-# as join_match's does. Refusals arrive as error frames: quick_play_disabled
-# (the mode has not set quick_play, which defaults to false for match modes),
-# match_capacity_reached, wrong_mode_type (a world mode), join_rate_limited.
+# as join_match's does. Refusals arrive as error frames and include not_found
+# (the mode name is unknown or not configured), quick_play_disabled (the mode
+# has not set quick_play, which defaults to false for match modes),
+# match_capacity_reached, wrong_mode_type (a world mode) and join_rate_limited.
 #
 # Needs an asobi server >= v0.86.0.
 func match_find_or_create(mode: String, ctx: Dictionary = {}) -> void:

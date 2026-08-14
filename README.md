@@ -160,11 +160,11 @@ Asobi.realtime.match_joined.connect(_on_joined)
 Asobi.realtime.match_find_or_create("arena")
 ```
 
-`mode` is the whole payload; every other match parameter comes from the server-side mode config. An optional second argument takes the same join context `join_match` accepts. The reply is `match.joined`, so it arrives on `match_joined` exactly as `join_match`'s reply does - there is no separate "created" signal to connect.
+`mode` is the only match parameter you supply; every other one comes from the server-side mode config. An optional second argument takes the same join context `join_match` accepts, and the server hands it to the game's `join` callback exactly as it does for `match.join`. The reply is `match.joined`, so it arrives on `match_joined` exactly as `join_match`'s reply does - there is no separate "created" signal to connect.
 
 Prefer it over `match_list` then `join_match`. The matchmaker groups co-queued tickets and spawns; it never joins a player into a running match, so browse-then-join was the only route into a live one, and it races: two clients reading the same empty listing each create a match. `match.find_or_create` resolves server-side and is serialized, so simultaneous callers converge on one match.
 
-A mode opts in through its `quick_play` flag, which defaults to `false` for match modes; a mode that has not opted in is refused with `quick_play_disabled`. (`listed` is browser visibility, a separate axis.) The other refusals a caller can see are `match_capacity_reached` (the node-wide cap), `wrong_mode_type` (a world mode) and `join_rate_limited`, which shares its bucket with `match.join` and `world.join`. All of them arrive on `error_received`.
+A mode opts in through its `quick_play` flag, which defaults to `false` for match modes; a mode that has not opted in is refused with `quick_play_disabled`. (`listed` is browser visibility, a separate axis.) Refusals include `not_found`, which an unknown or unconfigured mode name gets and is the one a typo hits first, `match_capacity_reached` (the node-wide cap), `wrong_mode_type` (a world mode) and `join_rate_limited`, which shares its bucket with `match.join` and `world.join`. All of them arrive on `error_received`.
 
 - Needs an asobi server >= v0.86.0.
 - Needs this addon >= v0.19.0; earlier versions have no `match_find_or_create` to call.
