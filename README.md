@@ -4,22 +4,26 @@ Godot 4.x client SDK for the [Asobi](https://github.com/widgrensit/asobi) game b
 
 ## Installation
 
-1. Copy `addons/asobi/` from this repo into your project's `addons/` folder, **or** clone as a git submodule:
+### From a release (recommended)
 
-   ```bash
-   git submodule add https://github.com/widgrensit/asobi-godot.git vendor/asobi-godot
-   ln -s ../vendor/asobi-godot/addons/asobi addons/asobi
-   ```
+Download `asobi-godot-<version>.zip` from the [latest release](https://github.com/widgrensit/asobi-godot/releases/latest) and extract it into your project root, so the addon lands in `addons/asobi/`.
 
-   For a tagged release (recommended):
+### From source
 
-   ```bash
-   git submodule add -b v0.6.1 https://github.com/widgrensit/asobi-godot.git vendor/asobi-godot
-   ```
+Copy `addons/asobi/` from this repo into your project's `addons/` folder, or add it as a git submodule pinned to a tag:
 
-2. *Project → Project Settings → Plugins* and tick **Asobi**. Reload the project so Godot picks up the autoload.
+```bash
+git submodule add -b <tag> https://github.com/widgrensit/asobi-godot.git vendor/asobi-godot
+ln -s ../vendor/asobi-godot/addons/asobi addons/asobi
+```
 
-   The plugin auto-registers an `Asobi` autoload singleton — you do **not** need to add an `AsobiClient` node to your scene.
+A source checkout reports its version as `0.0.0-dev` in the plugin list. Release zips carry the real version.
+
+### Enable it
+
+*Project → Project Settings → Plugins* and tick **Asobi**. Reload the project so Godot picks up the autoload.
+
+The plugin auto-registers an `Asobi` autoload singleton — you do **not** need to add an `AsobiClient` node to your scene.
 
 ## Run a backend first
 

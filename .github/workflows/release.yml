@@ -76,6 +76,21 @@ jobs:
         with:
           args: --unreleased --strip header --tag ${{ steps.resolve.outputs.next }}
 
+      - name: Package addon
+        if: steps.resolve.outputs.skip == 'false'
+        env:
+          TAG: ${{ steps.resolve.outputs.next }}
+        run: |
+          VERSION="${TAG#v}"
+          rm -rf dist
+          mkdir -p dist/addons
+          cp -R addons/asobi dist/addons/asobi
+          cp LICENSE README.md dist/addons/asobi/
+          sed -i "s/^version=.*/version=\"$VERSION\"/" dist/addons/asobi/plugin.cfg
+          grep -qx "version=\"$VERSION\"" dist/addons/asobi/plugin.cfg
+          (cd dist && zip -qr "../asobi-godot-$TAG.zip" addons)
+          unzip -l "asobi-godot-$TAG.zip"
+
       - name: Create tag and release
         if: steps.resolve.outputs.skip == 'false'
         env:
@@ -89,4 +104,4 @@ jobs:
           fi
           git tag "$TAG"
           git push origin "$TAG"
-          gh release create "$TAG" --title "$TAG" --notes "$CHANGELOG"
+          gh release create "$TAG" --title "$TAG" --notes "$CHANGELOG" "asobi-godot-$TAG.zip"
