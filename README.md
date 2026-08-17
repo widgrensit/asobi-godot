@@ -190,8 +190,19 @@ World signals: `world_joined`, `world_left`, `world_tick`, `world_terrain(coords
 `world_tick` carries deltas, not a snapshot:
 
 ```json
-{"type": "world.tick", "payload": {"tick": 42, "updates": [{"op": "u", "id": "e1", "x": 3}]}}
+{"type": "world.tick", "payload": {"zone": [3, 5], "frame_seq": 118, "kf": false, "tick": 42, "updates": [{"op": "u", "id": "e1", "x": 3}]}}
 ```
+
+Keep one entity table per `zone`, never one flat table. You are subscribed to
+several zones at once, each an independent server process, and messages are
+ordered per sender only - so a crossing's `op: "r"` from the zone you left and
+`op: "a"` from the zone you entered can arrive in either order, and applied flat
+the removal can land last and delete the entity for good.
+
+`frame_seq` is contiguous per zone and advances only on a frame actually sent, so
+a gap in it means a frame went missing. The SDK detects that for you: it emits
+`world_gap_detected(zone, expected, received)` and asks the server for a fresh
+baseline, which arrives as a frame with `kf: true`.
 
 `op` is `a` (added, with the entity's full state), `u` (updated, only the fields that changed) or `r` (removed). A full `op: "a"` snapshot of a zone's entities arrives on every fresh subscription to that zone, not once per zone per session. Joining subscribes your whole interest ring, so it delivers one snapshot frame per loaded, non-empty zone in the ring, not one frame overall. A zone holding no entities sends no entity snapshot, but it still pushes its terrain chunk if the world has a terrain provider, so you get `world_terrain` from it and no `world_tick`.
 
@@ -297,3 +308,25 @@ See the [WebSocket protocol guide](https://github.com/widgrensit/asobi/blob/main
 ## License
 
 Apache-2.0
+
+### Binary `world.tick`
+
+Ask for the binary encoding and `world.tick` arrives as a WebSocket binary frame
+in roughly a fifth of the bytes, decoded here about **2.4x faster than Godot's
+native JSON parser** (measured, 40 records, same output structure).
+
+```gdscript
+Asobi.realtime.request_binary_wire = true
+Asobi.realtime.connect_to_server()
+```
+
+**Nothing else changes.** The decoder maps the wire's compact 2-byte entity slots
+back to entity ids before it hands anything on, so `world_tick` carries the same
+dictionary either way and every handler you have already written keeps working.
+Only `world.tick` is affected; everything else stays JSON text on both wires.
+
+Requires the server to have `binary_wire` switched on. If it does not, you
+silently stay on text - `Asobi.realtime.wire` reads `"json"` or `"binary"` once
+`connected` has fired, so read it rather than assume. The same fallback happens
+per frame for anything the server cannot encode as binary, such as an entity
+field holding an array.
