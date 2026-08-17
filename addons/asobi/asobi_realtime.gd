@@ -49,6 +49,11 @@ signal vote_vetoed(payload: Dictionary)
 signal world_joined(payload: Dictionary)
 signal world_left(payload: Dictionary)
 signal world_tick(payload: Dictionary)
+## Emitted when this client misses one or more world.tick frames for a zone.
+## The SDK has already asked the server for a fresh keyframe by the time this
+## fires, so a game need not act on it; it is here because a gap on a TCP wire
+## should be impossible, so one is worth surfacing rather than swallowing.
+signal world_gap_detected(zone: Vector2i, expected: int, received: int)
 signal world_terrain(coords: Vector2i, data: String)
 signal world_list_received(payload: Dictionary)
 signal world_phase_changed(payload: Dictionary)
@@ -315,6 +320,62 @@ func rpc_call(method: String, params: Dictionary = {}, on_reply: Callable = Call
 		_pending[cid] = on_reply
 	return cid
 
+## Highest frame_seq applied per zone, keyed "x:y", and which zones have an
+## outstanding resync. Both are per zone because frame_seq is: a player is
+## subscribed to an interest ring of several zones at once, each an independent
+## server process with its own sequence.
+var _zone_seq: Dictionary = {}
+var _resync_pending: Dictionary = {}
+
+## Watches one zone's frame sequence and asks for a keyframe when frames go
+## missing.
+##
+## Note what this deliberately does NOT do: it never drops or rewrites a frame.
+## This SDK forwards world.tick straight to the game, so the game owns the entity
+## state, and swallowing a frame the game might want is not the SDK's call. It
+## does only the part the SDK is better placed to do - notice the gap, ask for
+## the repair - and tells the game it happened.
+##
+## A game that keys its entities per zone gets ordering safety for free from the
+## `zone` field. One that merges every zone into a single table can still be
+## corrupted by a crossing, and no amount of sequence tracking will see it: a
+## crossing emits a remove from the zone being left and an add from the zone
+## being entered, from two independent processes with no order between them,
+## while both sequences stay perfectly contiguous. Key on `zone`.
+func _track_world_tick(payload: Dictionary) -> void:
+	var zone_val: Variant = payload.get("zone")
+	if not (zone_val is Array) or (zone_val as Array).size() < 2:
+		# match.state, or a server predating the field. Nothing to track.
+		return
+	var zone_arr: Array = zone_val
+	var zone := Vector2i(int(zone_arr[0]), int(zone_arr[1]))
+	var key := "%d:%d" % [zone.x, zone.y]
+	var seq_val: Variant = payload.get("frame_seq")
+	if not (seq_val is float or seq_val is int):
+		return
+	var seq := int(seq_val)
+
+	# A keyframe is the whole of the zone's state, so it resets the sequence -
+	# including backwards. A zone restart resets frame_seq while the zone's
+	# identity is unchanged, and treating that as a stale duplicate would leave
+	# the client waiting for a sequence that is never coming back.
+	if bool(payload.get("kf", false)):
+		_zone_seq[key] = seq
+		_resync_pending.erase(key)
+		return
+
+	if _zone_seq.has(key):
+		var last: int = int(_zone_seq[key])
+		if seq > last + 1 and not _resync_pending.has(key):
+			_resync_pending[key] = true
+			_send_fire_and_forget("world.resync", {"zone": [zone.x, zone.y]})
+			world_gap_detected.emit(zone, last + 1, seq)
+		if seq <= last:
+			# Older than what we have seen. Forwarded to the game regardless, but
+			# it must not drag the high-water mark backwards.
+			return
+	_zone_seq[key] = seq
+
 func _send_fire_and_forget(type: String, payload: Dictionary, seq: int = -1) -> void:
 	var frame := {"type": type, "payload": payload}
 	# seq rides as a top-level sibling of payload, never nested, and only when
@@ -435,6 +496,7 @@ func _handle_message(raw: String) -> void:
 		"world.left":
 			world_left.emit(payload)
 		"world.tick":
+			_track_world_tick(payload)
 			world_tick.emit(payload)
 		"world.terrain":
 			var coords_arr: Array = payload.get("coords", [0, 0])
