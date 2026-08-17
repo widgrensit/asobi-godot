@@ -144,6 +144,71 @@ func _init() -> void:
 	rt.world_input({"dir": "left"}, 0)
 	_check(rt.sent[0].get("seq") == 0, "seq 0 is stamped, not treated as unset")
 
+	# --- world.resync, the automatic repair request -----------------------
+	# The SDK asks for a keyframe when a zone's frame_seq skips, because a game
+	# should not have to implement loss repair itself. Everything below drives
+	# _track_world_tick directly: it is what the world.tick dispatch calls.
+
+	rt.sent.clear()
+	rt._track_world_tick({"zone": [2, 0], "frame_seq": 1, "tick": 1})
+	rt._track_world_tick({"zone": [2, 0], "frame_seq": 2, "tick": 2})
+	_check(rt.sent.is_empty(), "a contiguous sequence asks for nothing")
+
+	rt._track_world_tick({"zone": [2, 0], "frame_seq": 6, "tick": 6})
+	_check(rt.sent.size() == 1, "a skipped frame_seq asks for exactly one resync")
+	# Guarded rather than indexed blind: an empty `sent` here raises, and a raise
+	# in a SceneTree script never reaches quit(), so the run hangs and CI reports
+	# a timeout instead of a failure. A missing frame must be a red test.
+	if rt.sent.size() == 1:
+		_check(rt.sent[0]["type"] == "world.resync", "the request is world.resync")
+		_check(
+			rt.sent[0]["payload"]["zone"] == [2, 0],
+			"and it names the zone that gapped, not the whole interest ring"
+		)
+	else:
+		_check(false, "no resync frame to inspect")
+
+	rt._track_world_tick({"zone": [2, 0], "frame_seq": 20, "tick": 20})
+	_check(rt.sent.size() == 1, "a second gap while a resync is outstanding does not re-ask")
+
+	# A keyframe clears the outstanding request, so the next real gap can ask.
+	rt._track_world_tick({"zone": [2, 0], "frame_seq": 20, "kf": true, "tick": 0})
+	rt._track_world_tick({"zone": [2, 0], "frame_seq": 40, "tick": 40})
+	_check(rt.sent.size() == 2, "after a keyframe lands, a later gap asks again")
+
+	# A keyframe is adopted even when its frame_seq moves BACKWARDS. A zone
+	# restart resets the counter while the zone's identity is unchanged, and
+	# treating that as stale would leave the client waiting for a sequence that
+	# is never coming back.
+	rt.sent.clear()
+	rt._track_world_tick({"zone": [7, 7], "frame_seq": 500, "tick": 500})
+	rt._track_world_tick({"zone": [7, 7], "frame_seq": 1, "kf": true, "tick": 0})
+	rt._track_world_tick({"zone": [7, 7], "frame_seq": 2, "tick": 2})
+	_check(rt.sent.is_empty(), "a post-restart keyframe rebases the sequence rather than gapping")
+
+	# Sequences are per zone. Two zones counting independently is not a gap in
+	# either, which is the whole reason the tracking is keyed on `zone`.
+	rt.sent.clear()
+	rt._track_world_tick({"zone": [0, 0], "frame_seq": 9, "tick": 9})
+	rt._track_world_tick({"zone": [1, 0], "frame_seq": 1, "tick": 1})
+	rt._track_world_tick({"zone": [1, 0], "frame_seq": 2, "tick": 2})
+	_check(rt.sent.is_empty(), "an unrelated zone's lower sequence is not a gap")
+
+	# A duplicate must not drag the high-water mark backwards, or the next
+	# legitimate frame looks like a gap and triggers a pointless resync.
+	rt.sent.clear()
+	rt._track_world_tick({"zone": [3, 3], "frame_seq": 5, "tick": 5})
+	rt._track_world_tick({"zone": [3, 3], "frame_seq": 5, "tick": 5})
+	rt._track_world_tick({"zone": [3, 3], "frame_seq": 6, "tick": 6})
+	_check(rt.sent.is_empty(), "a repeated frame_seq is not mistaken for a gap")
+
+	# match.state carries no zone, and a server predating the field sends no
+	# frame_seq. Neither may ask for anything.
+	rt.sent.clear()
+	rt._track_world_tick({"tick": 1})
+	rt._track_world_tick({"zone": [1, 1], "tick": 1})
+	_check(rt.sent.is_empty(), "no zone or no frame_seq means no resync request")
+
 	if _failures > 0:
 		print("FAILED: ", _failures)
 		quit(1)
