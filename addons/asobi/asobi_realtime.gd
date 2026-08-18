@@ -93,6 +93,22 @@ var _cid_counter := 0
 var _pending: Dictionary = {}
 var _revoked := false
 
+## Ask the server for the binary `world.tick` encoding, roughly a fifth of the
+## bytes and measured 2.4x faster to decode here than native JSON.
+##
+## Set it before [method connect_to_server]. Nothing else changes: the decoder
+## maps slots back to entity ids, so [signal world_tick] carries the same
+## dictionary either way and every existing handler keeps working. A server with
+## the binary wire switched off answers `json` and you silently stay on text -
+## read [member wire] after [signal connected] if you need to know which you got.
+var request_binary_wire := false
+
+## The wire the server actually granted: `"json"` or `"binary"`. Valid after
+## [signal connected].
+var wire := "json"
+
+var _decoder := AsobiWire.new()
+
 func _init(client: AsobiClient) -> void:
 	_client = client
 
@@ -114,11 +130,33 @@ func _process(_delta: float) -> void:
 	if _is_connecting and _socket.get_ready_state() == WebSocketPeer.STATE_OPEN:
 		_is_connecting = false
 		_is_connected = true
-		_send("session.connect", {"token": _client.access_token})
+		_send_session_connect()
 
 	while _socket.get_available_packet_count() > 0:
-		var data := _socket.get_packet().get_string_from_utf8()
-		_handle_message(data)
+		var packet := _socket.get_packet()
+		# Only world.tick ever arrives as binary; everything else is JSON text on
+		# both wires, so a binary client is one that handles both frame types.
+		if _socket.was_string_packet():
+			_handle_message(packet.get_string_from_utf8())
+		else:
+			_handle_binary_tick(packet)
+
+func _send_session_connect() -> void:
+	var payload := {"token": _client.access_token}
+	if request_binary_wire:
+		payload["wire"] = "binary"
+	_send("session.connect", payload)
+
+# A binary packet is a world.tick and nothing else. Decoded into the same
+# dictionary the JSON path produces, so it goes through the same gap detector and
+# the same signal - a game never learns which wire carried it.
+func _handle_binary_tick(packet: PackedByteArray) -> void:
+	var payload := _decoder.decode(packet)
+	if payload.is_empty():
+		push_warning("Asobi: dropped a malformed binary world.tick frame")
+		return
+	_track_world_tick(payload)
+	world_tick.emit(payload)
 
 func connect_to_server() -> void:
 	if _is_connected or _is_connecting:
@@ -135,6 +173,10 @@ func disconnect_from_server() -> void:
 	_is_connected = false
 	_is_connecting = false
 	_pending.clear()
+	# Slot bindings are established by the adds THIS connection received, so
+	# carrying them across a reconnect would attach stale ids to slots the server
+	# has since handed to different entities.
+	_decoder.reset()
 
 # Re-authenticate the socket after the access_token rotates. If already
 # connected, re-send session.connect with the fresh token; if the socket
@@ -144,7 +186,7 @@ func reauthenticate() -> void:
 	if _revoked:
 		return
 	if _is_connected:
-		_send("session.connect", {"token": _client.access_token})
+		_send_session_connect()
 	elif not _is_connecting:
 		connect_to_server()
 
@@ -433,6 +475,11 @@ func _handle_message(raw: String) -> void:
 	match type:
 		# Session
 		"session.connected":
+			# Read what was granted rather than assuming the request was honoured:
+			# a server with the binary wire off answers "json", and inferring the
+			# answer from the opcode of the first frame to arrive is a guessing
+			# game with two possible SDK behaviours.
+			wire = str(payload.get("wire", "json"))
 			connected.emit()
 		"session.heartbeat":
 			heartbeat.emit(payload)

@@ -45,3 +45,6 @@ jobs:
 
       - name: Run outgoing-frame test
         run: godot --headless --path . -s test/test_outgoing_frames.gd
+
+      - name: Run binary-wire test
+        run: godot --headless --path . -s test/test_binary_wire.gd
