@@ -48,3 +48,6 @@ jobs:
 
       - name: Run binary-wire test
         run: godot --headless --path . -s test/test_binary_wire.gd
+
+      - name: Run datagram test
+        run: godot --headless --path . -s test/test_datagram.gd

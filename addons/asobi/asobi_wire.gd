@@ -205,6 +205,17 @@ func _bind(record: Dictionary, table: Dictionary, slot: int) -> void:
 	if table.has(slot):
 		record["id"] = table[slot]
 
+## The slot-to-id table for one zone, as [code][x, y][/code].
+##
+## The datagram plane carries slots and this wire carries the bindings, so the
+## table is built here and read there. One table rather than two, because two
+## would eventually disagree about which entity holds a slot - the same class of
+## defect that keying entities by zone exists to close.
+func slots_for(zone: Array) -> Dictionary:
+	if zone.size() < 2:
+		return {}
+	return _slots.get("%d:%d" % [int(zone[0]), int(zone[1])], {})
+
 ## Forgets every slot binding, for a reconnect.
 ##
 ## Bindings are per-session state established by the adds a connection actually

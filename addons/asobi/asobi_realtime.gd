@@ -109,6 +109,24 @@ var wire := "json"
 
 var _decoder := AsobiWire.new()
 
+## Ask for the datagram plane as well: entity positions then arrive over UDP,
+## where one lost packet costs one frame of staleness rather than stalling
+## everything behind a TCP retransmit.
+##
+## Set it before [method connect_to_server]. Requires [member entities], because
+## the two-carrier merge rule has to live somewhere and that somewhere is a
+## registry rather than every game's own code. Never opens on a web export -
+## there is no raw UDP in a browser - and the game is unaffected either way.
+var request_datagram := false
+
+## The entity registry, when you want one. Assign an [AsobiEntities] before
+## connecting and it is fed from both carriers; leave it null and nothing
+## changes. Required for [member request_datagram].
+var entities: AsobiEntities = null
+
+var _datagram: AsobiDatagram = null
+var _udp: PacketPeerUDP = null
+
 func _init(client: AsobiClient) -> void:
 	_client = client
 
@@ -126,6 +144,7 @@ func _process(_delta: float) -> void:
 		return
 
 	_socket.poll()
+	_datagram_poll()
 
 	if _is_connecting and _socket.get_ready_state() == WebSocketPeer.STATE_OPEN:
 		_is_connecting = false
@@ -168,7 +187,95 @@ func connect_to_server() -> void:
 		return
 	_is_connecting = true
 
+# --- The datagram plane ---
+#
+# Optional in every state. Every line below can fail, be blocked by a firewall,
+# or find a server with no gateway, and the game keeps working on the WebSocket
+# exactly as it did - which is what makes this safe to switch on.
+
+func _datagram_open() -> void:
+	if entities == null:
+		push_warning("Asobi: request_datagram needs an AsobiEntities; staying on the WebSocket")
+		return
+	_udp = PacketPeerUDP.new()
+	_datagram = AsobiDatagram.new()
+	_datagram.send = func(bytes: PackedByteArray) -> void:
+		# A send failure is not worth surfacing: there is no delivery to fail on
+		# a connectionless socket, and the next datagram supersedes this one.
+		if _udp != null:
+			_udp.put_packet(bytes)
+	_datagram.begin_mint()
+
+	rpc_call("asobi.datagram.open", {}, func(ok: bool, result: Dictionary) -> void:
+		if ok:
+			_datagram_minted(result)
+		else:
+			# `datagram_unavailable` is a normal answer rather than a failure:
+			# this server has no plane today and the WebSocket carries all.
+			_datagram_stop())
+
+
+func _datagram_minted(result: Dictionary) -> void:
+	if _datagram == null:
+		return
+	var endpoint := str(result.get("endpoint", ""))
+	var at := endpoint.rfind(":")
+	if at <= 0:
+		_datagram_stop()
+		return
+	var host := endpoint.substr(0, at)
+	var port := int(endpoint.substr(at + 1))
+	if port <= 0 or _udp.connect_to_host(host, port) != OK:
+		_datagram_stop()
+		return
+
+	var fields: Array = result.get("fields", [])
+	var names := PackedStringArray()
+	for f in fields:
+		names.append(str(f.get("name", "")))
+	entities.set_transform_fields(names)
+
+	var ok: bool = _datagram.on_mint(
+		int(result.get("conn_id", 0)),
+		Marshalls.base64_to_raw(str(result.get("kup", ""))),
+		int(result.get("epoch", 0)),
+		fields,
+		_now()
+	)
+	if not ok:
+		_datagram_stop()
+
+
+func _datagram_stop() -> void:
+	if _datagram != null:
+		_datagram.stop()
+	if _udp != null:
+		_udp.close()
+	_datagram = null
+	_udp = null
+
+
+func _datagram_poll() -> void:
+	if _datagram == null:
+		return
+	var now := _now()
+	# Bounded. An uncapped drain would let a flood hold the frame, which on a
+	# client is a visible stall rather than an abstraction.
+	var budget := 64
+	while _udp != null and _udp.get_available_packet_count() > 0 and budget > 0:
+		budget -= 1
+		var pose := _datagram.on_datagram(_udp.get_packet(), now)
+		if not pose.is_empty():
+			entities.apply_pose(pose, _decoder.slots_for(pose["zone"]), _datagram.fields)
+	_datagram.update(now)
+
+
+func _now() -> float:
+	return float(Time.get_ticks_msec()) / 1000.0
+
+
 func disconnect_from_server() -> void:
+	_datagram_stop()
 	_socket.close()
 	_is_connected = false
 	_is_connecting = false
@@ -475,6 +582,8 @@ func _handle_message(raw: String) -> void:
 	match type:
 		# Session
 		"session.connected":
+			if request_datagram:
+				_datagram_open()
 			# Read what was granted rather than assuming the request was honoured:
 			# a server with the binary wire off answers "json", and inferring the
 			# answer from the opcode of the first frame to arrive is a guessing
