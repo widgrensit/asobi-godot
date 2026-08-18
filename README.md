@@ -312,7 +312,7 @@ Apache-2.0
 ### Binary `world.tick`
 
 Ask for the binary encoding and `world.tick` arrives as a WebSocket binary frame
-in roughly a fifth of the bytes, decoded here about **2.4x faster than Godot's
+in about a quarter of the bytes, decoded here about **2.4x faster than Godot's
 native JSON parser** (measured, 40 records, same output structure).
 
 ```gdscript

@@ -93,7 +93,7 @@ var _cid_counter := 0
 var _pending: Dictionary = {}
 var _revoked := false
 
-## Ask the server for the binary `world.tick` encoding, roughly a fifth of the
+## Ask the server for the binary `world.tick` encoding, about a quarter of the
 ## bytes and measured 2.4x faster to decode here than native JSON.
 ##
 ## Set it before [method connect_to_server]. Nothing else changes: the decoder
