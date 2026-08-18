@@ -3,7 +3,7 @@ extends RefCounted
 
 ## Decoder for asobi's binary `world.tick` frame.
 ##
-## Same information as the JSON frame in roughly a fifth of the bytes, and
+## Same information as the JSON frame in about a quarter of the bytes, and
 ## measured 2.4x faster to decode here than Godot's native JSON parser: the
 ## byte loop is forty iterations of native `decode_*` calls, while the parser has
 ## to chew nearly four kilobytes including forty UUID strings and a hundred and
