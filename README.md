@@ -330,3 +330,42 @@ silently stay on text - `Asobi.realtime.wire` reads `"json"` or `"binary"` once
 `connected` has fired, so read it rather than assume. The same fallback happens
 per frame for anything the server cannot encode as binary, such as an entity
 field holding an array.
+
+## The datagram plane (optional)
+
+Entity **positions** can travel over UDP instead of the WebSocket, so one lost
+packet costs one frame of staleness rather than stalling everything behind a TCP
+retransmit.
+
+```gdscript
+Asobi.realtime.entities = AsobiEntities.new()
+Asobi.realtime.request_datagram = true
+
+Asobi.realtime.entities.entity_updated.connect(func(id, state, changed):
+    if "x" in changed:
+        move_sprite(id, state.x, state.y))
+
+Asobi.realtime.connect_to_server()
+```
+
+**It needs `AsobiEntities`**, and that is not incidental. Two carriers describe
+the same entity and they can disagree, so somebody has to hold the merge rule -
+which world.tick field loses to a fresher position, which wins regardless, and
+which frame may never create an entity at all. Putting that in a registry the SDK
+owns is the difference between an API and a subtle correctness problem handed to
+every game.
+
+The registry is useful on its own: bind it without `request_datagram` and it
+folds `world.tick` into a per-zone entity view with the crossing and keyframe
+rules already handled.
+
+**The WebSocket carries everything in every state.** If the server has no
+gateway, if a firewall drops UDP, or if the path goes quiet for two seconds, the
+SDK falls back to taking positions from `world.tick` and keeps trying in the
+background. There is no state in which your game stops working - which is why
+this is safe to switch on, and why a **web export simply never opens it**, since
+browsers have no raw UDP.
+
+What it needs from the server: `binary_wire` on, a `dgram_pose` manifest, and a
+gateway reachable at the endpoint the mint hands back. See
+[self-hosting](https://github.com/widgrensit/asobi/blob/main/guides/self-hosting.md).
