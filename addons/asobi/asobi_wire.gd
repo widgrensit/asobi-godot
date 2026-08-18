@@ -24,7 +24,7 @@ extends RefCounted
 ## frame    Kind:8, ZX:32, ZY:32, FrameSeq:64, Kf:8, Tick:64,
 ##          DictLen:8, Dict, RecCount:16, Records
 ## dict     for each name: Len:8, Name/utf8            (at most 32 names)
-## record   Op:8, Slot:16, [IdLen:8, Id/utf8]?, FieldCount:8, Fields
+## record   Op:8, Slot:16, Gen:8, [IdLen:8, Id/utf8]?, FieldCount:8, Fields
 ## field    Type:3, Idx:5, Value                       (one header byte)
 ## [/codeblock]
 
@@ -90,13 +90,17 @@ func decode(bytes: PackedByteArray) -> Dictionary:
 	var updates: Array = []
 
 	for _r in rec_count:
-		if pos + 3 > bytes.size():
+		if pos + 4 > bytes.size():
 			return {}
 		var op := bytes.decode_u8(pos)
 		var slot := bytes.decode_u16(pos + 1)
-		pos += 3
+		# The slot's generation, advancing every time it is rebound to a different
+		# entity. Redundant on this ordered, reliable wire and carried anyway, so a
+		# client also running the datagram plane can keep ONE slot table for both.
+		var gen := bytes.decode_u8(pos + 3)
+		pos += 4
 
-		var record := {}
+		var record := {"gen": gen}
 		match op:
 			OP_ADD:
 				if pos >= bytes.size():

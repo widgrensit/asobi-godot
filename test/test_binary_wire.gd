@@ -99,6 +99,12 @@ func _check_fixture(entry: Dictionary) -> void:
 		if want.has("id") and str(have.get("id")) != str(want.get("id")):
 			_fail("%s[%d]: id %s != %s" % [name, i, str(have.get("id")), str(want.get("id"))])
 			return
+		# The generation. A decoder that skipped the byte would shift every later
+		# offset and fail loudly, but one that read it from the wrong place would
+		# not, so pin the value.
+		if int(have.get("gen", -1)) != int(want.get("gen", -2)):
+			_fail("%s[%d]: gen %d != %d" % [name, i, int(have.get("gen", -1)), int(want.get("gen", -2))])
+			return
 		var want_fields: Dictionary = want.get("fields", {})
 		for key in want_fields:
 			if not have.has(key):
